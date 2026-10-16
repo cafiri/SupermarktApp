@@ -16,3 +16,15 @@ eq(detectDiet('Hühnereier', 'Hühnereier Eier', [324], [107]), 'vegetarisch', '
 eq(detectDiet('Pasta', 'Pasta Delverde Nudeln', [118], [16]), 'vegan', 'pasta');
 eq(detectDiet('Feinschmecker Sauce', 'Feinschmecker Sauce Knorr Soßen', [334], [112]), 'vegetarisch', 'sauce');
 eq(detectDiet('Broccoli', 'Broccoli Brokkoli und Kohl', [433], [147]), 'vegan', 'broccoli');
+
+// Preisberechnung: ungültige Angebots-ID wird über den Namen zugeordnet
+import { priceRecipe } from '../worker/recipes';
+import type { Offer } from '../shared/types';
+const offer = { id: 7, chain: 'Lidl', name: 'Bio Rote Linsen', price: 1.29, pack: '500 g' } as Offer;
+const rec = priceRecipe(
+  { title: 't', description: '', minutes: 10, diet: 'vegan', steps: [], storage: '', ingredients: [
+    { name: 'Bio Rote Linsen (Golden Sun)', quantity: '200 g', offerId: 999, packs: 1, estimatedPrice: null, usedFraction: 0.4, pantry: false },
+    { name: 'Salz', quantity: '', offerId: null, packs: null, estimatedPrice: null, usedFraction: null, pantry: true },
+  ] },
+  new Map([[7, offer]]), 2, 0);
+eq([rec.totalCost, rec.usedCost, rec.perPortion, rec.chains], [1.29, 0.52, 0.26, ['Lidl']], 'name fallback');

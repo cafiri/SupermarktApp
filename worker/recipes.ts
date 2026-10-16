@@ -3,7 +3,7 @@ import type { Diet, Offer, Recipe, RecipeIngredient, RecipeRequest, RecipesRespo
 import type { Env } from './index';
 
 const DEFAULT_MODEL = 'claude-sonnet-5-5';
-const MAX_OFFERS = 320;
+const MAX_OFFERS = 650;
 
 const DIET_TEXT: Record<string, string> = {
   alles: 'egal – Fleisch, Fisch oder vegetarisch, gerne gemischt',
@@ -146,7 +146,8 @@ function buildPrompt(req: RecipeRequest, offers: Offer[], focus?: Offer): { syst
     'Du bist ein kreativer, praktischer Hobbykoch-Assistent für eine Spar-Rezepte-App in Deutschland.',
     'Du baust alltagstaugliche Rezepte aus aktuellen Supermarkt-Angeboten. Ziel: lecker und möglichst günstig pro Portion.',
     'Regeln:',
-    '- Nutze für die Hauptzutaten Angebote aus der Liste und gib deren ID als offerId an. Erfinde keine IDs.',
+    '- Nutze für die Hauptzutaten Angebote aus der Liste und gib deren ID als offerId an. Erfinde keine IDs. Wenn du ein Produkt aus der Liste nennst, MUSS seine offerId gesetzt sein.',
+    '- Jede Zutat ohne Angebot und ohne Grundvorrat braucht einen estimatedPrice größer 0.',
     '- packs = wie viele Packungen man kaufen muss, damit die Menge reicht (Packungsgröße beachten).',
     '- Zutaten, die nicht im Angebot sind, mit realistischem Discounter-Preis für die kleinste übliche Packung schätzen (estimatedPrice).',
     '- usedFraction = welcher Anteil der gekauften Menge im Rezept verbraucht wird (für den Preis pro Portion).',
@@ -171,7 +172,7 @@ function buildPrompt(req: RecipeRequest, offers: Offer[], focus?: Offer): { syst
       `WICHTIG: Jedes Rezept muss auf diesem Angebot aufbauen: ID ${focus.id} – ${focus.name}${focus.brand ? ` (${focus.brand})` : ''}, ${focus.pack ?? ''}, ${eur(focus.price)} € bei ${focus.chain}.`,
     );
   }
-  if (req.wishes?.trim()) lines.push(`Wünsche: ${req.wishes.trim().slice(0, 300)}`);
+  if (req.wishes?.trim()) lines.push(`WICHTIG – Wunsch, der für jedes Rezept gilt: ${req.wishes.trim().slice(0, 300)}`);
   lines.push('');
   lines.push('Aktuelle Angebote (ID | Markt | Produkt | Packung | Preis | Gruppe | Ernährung | Hinweis):');
   for (const o of offers) lines.push(offerLine(o));
@@ -200,9 +201,23 @@ interface RawRecipe {
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
+const norm = (t: string) => t.toLowerCase().replace(/\(.*?\)/g, '').replace(/[^a-zäöüß0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+
+/** Findet ein Angebot über den Namen, falls die KI keine gültige ID geliefert hat */
+function matchByName(name: string, offers: Offer[]): Offer | undefined {
+  const n = norm(name);
+  if (n.length < 4) return undefined;
+  return offers.find((o) => {
+    const on = norm(o.name);
+    return on.length >= 4 && (n.includes(on) || on.includes(n));
+  });
+}
+
 export function priceRecipe(raw: RawRecipe, byId: Map<number, Offer>, servings: number, idx: number): Recipe {
+  const all = [...byId.values()];
   const ingredients: RecipeIngredient[] = raw.ingredients.map((i) => {
-    const o = i.offerId != null ? byId.get(i.offerId) : undefined;
+    let o = i.offerId != null ? byId.get(i.offerId) : undefined;
+    if (!o && !i.pantry && !(typeof i.estimatedPrice === 'number' && i.estimatedPrice > 0)) o = matchByName(i.name, all);
     const frac = typeof i.usedFraction === 'number' && i.usedFraction > 0 ? Math.min(1, i.usedFraction) : 1;
     if (o) {
       const packs = Math.max(1, Math.round(i.packs ?? 1));
