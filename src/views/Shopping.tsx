@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react';
-import type { Recipe, StoreInfo } from '../../shared/types';
+import type { Offer, Recipe, StoreInfo } from '../../shared/types';
 import { euro, shortChain } from '../format';
 import { listAsText, mergeRecipes, shareText } from '../shopping';
 import { OfferThumb } from './OfferRow';
 
 interface Props {
   recipes: Recipe[];
+  singles: Offer[];
+  removeSingle: (o: Offer) => void;
   checked: string[];
   toggleItem: (key: string) => void;
   removeRecipe: (r: Recipe) => void;
@@ -16,16 +18,19 @@ interface Props {
 }
 
 export function ShoppingView(p: Props) {
-  const list = useMemo(() => mergeRecipes(p.recipes), [p.recipes]);
+  const list = useMemo(() => mergeRecipes(p.recipes, p.singles), [p.recipes, p.singles]);
   const checked = new Set(p.checked);
   const [msg, setMsg] = useState<string | null>(null);
   const store = (chain: string) => p.stores.find((s) => s.chain === chain);
 
-  if (!p.recipes.length) {
+  if (!p.recipes.length && !p.singles.length) {
     return (
       <section className="empty">
         <h2>Einkaufsliste ist leer</h2>
-        <p>Tippe bei einem Rezept auf „+ Auf die Einkaufsliste“. Hier steht dann alles zusammengefasst, sortiert nach Markt.</p>
+        <p>
+          Tippe bei einem Rezept auf „+ Auf die Einkaufsliste“ oder bei einem Angebot auf „+ Liste“. Hier steht dann alles zusammengefasst,
+          sortiert nach Markt.
+        </p>
         <button className="primary" onClick={p.goToCook}>
           Zu den Rezepten
         </button>
@@ -37,7 +42,14 @@ export function ShoppingView(p: Props) {
     <>
       <section className="card">
         <div className="card-head">
-          <h2>Für {p.recipes.length} Rezept{p.recipes.length > 1 ? 'e' : ''}</h2>
+          <h2>
+            {[
+              p.recipes.length ? `${p.recipes.length} Rezept${p.recipes.length > 1 ? 'e' : ''}` : '',
+              p.singles.length ? `${p.singles.length} Angebot${p.singles.length > 1 ? 'e' : ''}` : '',
+            ]
+              .filter(Boolean)
+              .join(' + ')}
+          </h2>
           <button
             className="secondary small-btn"
             onClick={async () => setMsg(await shareText('Einkaufsliste', listAsText('Einkaufsliste', list, shortChain, checked)))}
@@ -57,6 +69,16 @@ export function ShoppingView(p: Props) {
                 {r.title}
               </button>
               <button className="icon-btn" onClick={() => p.removeRecipe(r)} aria-label={`${r.title} von der Liste nehmen`}>
+                ✕
+              </button>
+            </li>
+          ))}
+          {p.singles.map((o) => (
+            <li key={`s${o.id}`}>
+              <span>
+                {o.name} <span className="muted small">· {shortChain(o.chain)}</span>
+              </span>
+              <button className="icon-btn" onClick={() => p.removeSingle(o)} aria-label={`${o.name} von der Liste nehmen`}>
                 ✕
               </button>
             </li>
@@ -130,7 +152,7 @@ function Item({ i, done, onToggle }: { i: ReturnType<typeof mergeRecipes>['other
           <span className="shop-name">{i.name}</span>
           <span className="shop-sub">
             {i.detail}
-            {i.recipes.length > 1 ? ` · für ${i.recipes.length} Rezepte` : ''}
+            {i.recipes.filter((r) => r !== 'Einzeln').length > 1 ? ` · für ${i.recipes.filter((r) => r !== 'Einzeln').length} Rezepte` : ''}
           </span>
         </span>
         <span className="shop-price">{i.estimated ? `~ ${euro(i.cost)}` : euro(i.cost)}</span>

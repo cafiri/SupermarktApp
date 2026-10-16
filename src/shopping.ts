@@ -1,4 +1,4 @@
-import type { Recipe } from '../shared/types';
+import type { Offer, Recipe } from '../shared/types';
 
 export interface ListItem {
   key: string;
@@ -19,7 +19,22 @@ export interface MergedList {
 }
 
 /** Fasst die Einkaufslisten mehrerer Rezepte zusammen (gleiche Angebote werden addiert) */
-export function mergeRecipes(recipes: Recipe[]): MergedList {
+export function mergeRecipes(recipes: Recipe[], singles: Offer[] = []): MergedList {
+  // Einzelne Angebote wie eine Mini-Rezeptzutat behandeln (1 Packung)
+  const singleRecipe: Recipe | null = singles.length
+    ? ({
+        title: 'Einzeln',
+        ingredients: singles.map((o) => ({
+          name: o.name,
+          quantity: '',
+          pantry: false,
+          cost: o.price,
+          usedCost: o.price,
+          offer: { id: o.id, chain: o.chain, name: o.name, brand: o.brand, pack: o.pack, price: o.price, packs: 1, image: o.image, page: o.page },
+        })),
+      } as unknown as Recipe)
+    : null;
+  if (singleRecipe) recipes = [...recipes, singleRecipe];
   const byChain = new Map<string, Map<string, ListItem>>();
   const other = new Map<string, ListItem>();
   const pantry = new Set<string>();

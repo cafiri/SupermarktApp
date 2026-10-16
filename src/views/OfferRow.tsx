@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { Offer } from '../../shared/types';
+import { useListActions } from '../actions';
 import { euro, shortChain, validity } from '../format';
 
 /** Größere Variante eines Produktbilds (marktguru, ALDI, EDEKA) */
@@ -66,6 +67,8 @@ export function OfferRow({
   inCart?: boolean;
   showChain?: boolean;
 }) {
+  const list = useListActions();
+  const onList = list?.isOnList(o.id) ?? false;
   return (
     <li className="offer">
       <OfferThumb src={o.image} alt={o.name} />
@@ -83,11 +86,23 @@ export function OfferRow({
             {euro(o.refPrice)}/{o.refUnit}
           </div>
         )}
-        {o.cooking && onToggleCart && (
-          <button className={`cook-btn ${inCart ? 'on' : ''}`} onClick={() => onToggleCart(o)} aria-pressed={inCart}>
-            {inCart ? '✓ Im Korb' : '+ Korb'}
-          </button>
-        )}
+        <div className="offer-btns">
+          {o.cooking && onToggleCart && (
+            <button className={`cook-btn ${inCart ? 'on' : ''}`} onClick={() => onToggleCart(o)} aria-pressed={inCart}>
+              {inCart ? '✓ Korb' : '+ Korb'}
+            </button>
+          )}
+          {list && (
+            <button
+              className={`cook-btn ${onList ? 'on' : ''}`}
+              onClick={() => list.toggleListOffer(o)}
+              aria-pressed={onList}
+              aria-label={onList ? `${o.name} von der Einkaufsliste nehmen` : `${o.name} auf die Einkaufsliste`}
+            >
+              {onList ? '✓ Liste' : '+ Liste'}
+            </button>
+          )}
+        </div>
       </div>
     </li>
   );

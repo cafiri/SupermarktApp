@@ -4,6 +4,7 @@ import { api, loadLastRecipes, LoginError, useCart, useOffers, useSettings, useS
 import { shortChain } from './format';
 import { CookView, type GenState } from './views/Cook';
 import { ShoppingView } from './views/Shopping';
+import { ListContext } from './actions';
 import { OffersView } from './views/Offers';
 import { MarketsView } from './views/Markets';
 import { RecipeDetail } from './views/RecipeDetail';
@@ -93,12 +94,15 @@ export default function App() {
     return m;
   }, [offers.data]);
 
+  const listActions = { toggleListOffer: shopping.toggleOffer, isOnList: shopping.hasOffer };
+
   if (detail)
     return (
       <RecipeDetail recipe={detail} onBack={closeDetail} onList={() => shopping.toggleRecipe(detail)} onListNow={shopping.has(detail)} />
     );
   if (leaflet)
     return (
+      <ListContext.Provider value={listActions}>
       <LeafletView
         chain={leaflet.chain}
         leaflets={leaflet.leaflets}
@@ -107,9 +111,11 @@ export default function App() {
         onToggleCart={cart.toggle}
         inCart={cart.ids}
       />
+      </ListContext.Provider>
     );
 
   return (
+    <ListContext.Provider value={listActions}>
     <div className="app">
       <header className="topbar">
         <div className="topbar-row">
@@ -189,6 +195,8 @@ export default function App() {
         {tab === 'einkauf' && (
           <ShoppingView
             recipes={shopping.recipes}
+            singles={shopping.offers}
+            removeSingle={shopping.toggleOffer}
             checked={shopping.checked}
             toggleItem={shopping.toggleItem}
             removeRecipe={shopping.toggleRecipe}
@@ -230,11 +238,12 @@ export default function App() {
           setTab={setTab}
           label="Einkauf"
           icon={<ListIcon />}
-          badge={shopping.recipes.length || undefined}
+          badge={shopping.recipes.length + shopping.offers.length || undefined}
         />
         <TabButton id="maerkte" tab={tab} setTab={setTab} label="Märkte" icon={<PinIcon />} />
       </nav>
     </div>
+    </ListContext.Provider>
   );
 }
 

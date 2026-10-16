@@ -1374,6 +1374,16 @@ h3 {
   margin: 4px 0;
 }
 
+.offer-btns {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+.offer-btns .cook-btn {
+  margin-top: 0;
+  padding: 3px 9px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;

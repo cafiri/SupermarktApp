@@ -188,11 +188,13 @@ export function useCart() {
 
 export interface ShoppingState {
   recipes: Recipe[];
+  /** Einzelne Angebote ohne Rezept */
+  offers: Offer[];
   checked: string[];
 }
 
 export function useShoppingList() {
-  const [state, setState] = useState<ShoppingState>(() => readRaw<ShoppingState>('shopping') ?? { recipes: [], checked: [] });
+  const [state, setState] = useState<ShoppingState>(() => ({ recipes: [], offers: [], checked: [], ...(readRaw<ShoppingState>('shopping') ?? {}) }));
   useEffect(() => write('shopping', state), [state]);
   const has = (r: Recipe) => state.recipes.some((x) => x.id === r.id);
   const toggleRecipe = useCallback(
@@ -204,8 +206,14 @@ export function useShoppingList() {
     (key: string) => setState((s) => ({ ...s, checked: s.checked.includes(key) ? s.checked.filter((k) => k !== key) : [...s.checked, key] })),
     [],
   );
-  const clear = useCallback(() => setState({ recipes: [], checked: [] }), []);
-  return { ...state, has, toggleRecipe, toggleItem, clear };
+  const toggleOffer = useCallback(
+    (o: Offer) =>
+      setState((s) => (s.offers.some((x) => x.id === o.id) ? { ...s, offers: s.offers.filter((x) => x.id !== o.id) } : { ...s, offers: [...s.offers, o] })),
+    [],
+  );
+  const hasOffer = (id: number) => state.offers.some((x) => x.id === id);
+  const clear = useCallback(() => setState({ recipes: [], offers: [], checked: [] }), []);
+  return { ...state, has, toggleRecipe, toggleOffer, hasOffer, toggleItem, clear };
 }
 
 // ---------- Nächste Filialen ----------
