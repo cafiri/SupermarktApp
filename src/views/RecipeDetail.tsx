@@ -149,7 +149,7 @@ function ShopItem({ i, checked, onToggle }: { i: RecipeIngredient; checked: bool
     <li className={`shop-item ${checked ? 'done' : ''}`}>
       <label>
         <input type="checkbox" checked={checked} onChange={onToggle} />
-        {i.offer && <OfferThumb src={i.offer.image} size={44} alt={i.offer.name} />}
+        {i.offer && <OfferThumb src={i.offer.image} crop={i.offer.crop} size={44} alt={i.offer.name} />}
         <span className="shop-text">
           <span className="shop-name">
             {i.offer ? (

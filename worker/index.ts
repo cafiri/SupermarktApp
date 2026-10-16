@@ -81,7 +81,7 @@ async function edekaOffers(env: Env, m: EdekaMarket): Promise<{ offers: Offer[];
   const idx = await kvGet<ProspektIndex>(env, `edeka:idx:${m.marketNo}`);
   const valid = (idx?.prospekte ?? []).filter((p) => Date.parse(p.validTo) >= now);
   if (valid.length) {
-    const lists = await Promise.all(valid.map((p) => kvGet<Offer[]>(env, `edeka:pdf:${p.key}`)));
+    const lists = await Promise.all(valid.map(async (p) => (await kvGet<Offer[]>(env, pdfKey(p.key))) ?? kvGet<Offer[]>(env, `edeka:pdf:${p.key}`)));
     const offers = lists.flatMap((l) => l ?? []);
     if (offers.length) return { offers };
   }
@@ -256,6 +256,13 @@ async function getLeaflets(env: Env, plz: string, marketIds: number[]): Promise<
 
 // ---------- Prospekte einlesen (Cron + manuell) ----------
 
+// Versionskennung des Einlese-Formats. Wird sie erhöht, liest der Cron alle aktuellen Prospekte neu ein
+// (v2: mit Bildausschnitten). Bis dahin bleiben die alten Daten sichtbar.
+const EXTRACT_VERSION = 'v2';
+const pdfKey = (k: string) => `edeka:pdf:${EXTRACT_VERSION}:${k}`;
+const errKey = (k: string) => `edeka:err:${EXTRACT_VERSION}:${k}`;
+const metaKey = (k: string) => `edeka:meta:${EXTRACT_VERSION}:${k}`;
+
 async function processMarket(env: Env, m: EdekaMarket, maxExtract = 1): Promise<string[]> {
   const log: string[] = [];
   if (!env.ANTHROPIC_API_KEY || !env.CACHE) return ['API-Key oder KV fehlt'];
@@ -264,10 +271,10 @@ async function processMarket(env: Env, m: EdekaMarket, maxExtract = 1): Promise<
   const idx: ProspektIndex = { prospekte: [] };
   let extracted = 0;
   for (const p of prospekte) {
-    const key = `edeka:pdf:${p.key}`;
+    const key = pdfKey(p.key);
     let offers = await kvGet<Offer[]>(env, key);
     if (!offers && extracted < maxExtract) {
-      const err = await kvGet<{ at: number; tries?: number }>(env, `edeka:err:${p.key}`);
+      const err = await kvGet<{ at: number; tries?: number }>(env, errKey(p.key));
       if (err && (err.tries ?? 1) >= 2) {
         log.push(`${p.key}: zweimal fehlgeschlagen – kein weiterer automatischer Versuch`);
       } else if (err && Date.now() - err.at < 3 * HOUR) {
@@ -288,16 +295,18 @@ async function processMarket(env: Env, m: EdekaMarket, maxExtract = 1): Promise<
           offers = await extractProspekt(m, p, env.ANTHROPIC_API_KEY, env.EXTRACT_MODEL || env.MODEL || 'claude-sonnet-5-5', track);
           const ttl = Math.ceil((Date.parse(p.validTo) - Date.now()) / 1000) + 86400;
           await kvPut(env, key, offers, ttl);
-          await kvPut(env, `edeka:meta:${p.key}`, { extractedAt: new Date().toISOString(), seconds: Math.round((Date.now() - t0) / 1000), costUsd: Math.round(cost * 100) / 100 }, ttl);
+          await kvPut(env, metaKey(p.key), { extractedAt: new Date().toISOString(), seconds: Math.round((Date.now() - t0) / 1000), costUsd: Math.round(cost * 100) / 100 }, ttl);
           log.push(`${p.key}: ${offers.length} Angebote eingelesen (${Math.round((Date.now() - t0) / 1000)} s)`);
         } catch (e) {
-          await kvPut(env, `edeka:err:${p.key}`, { at: Date.now(), tries: (err?.tries ?? 0) + 1, msg: String(e) }, 8 * 86400);
+          await kvPut(env, errKey(p.key), { at: Date.now(), tries: (err?.tries ?? 0) + 1, msg: String(e) }, 8 * 86400);
           log.push(`${p.key}: Fehler ${e instanceof Error ? e.message : String(e)}`);
         }
       }
     }
+    // Solange die neue Fassung fehlt, die alte weiter anzeigen
+    if (!offers) offers = await kvGet<Offer[]>(env, `edeka:pdf:${p.key}`);
     if (offers) {
-      const meta = await kvGet<ProspektMeta>(env, `edeka:meta:${p.key}`);
+      const meta = (await kvGet<ProspektMeta>(env, metaKey(p.key))) ?? (await kvGet<ProspektMeta>(env, `edeka:meta:${p.key}`));
       idx.prospekte.push({ key: p.key, validFrom: p.validFrom, validTo: p.validTo, preview: p.preview, count: offers.length, ...meta });
     }
   }
@@ -412,9 +421,9 @@ export default {
         if (!m) return error('Markt unbekannt', 404);
         const idx = await kvGet<ProspektIndex>(env, `edeka:idx:${m.marketNo}`);
         const ps = await findProspekte(m).catch((e) => String(e));
-        const errs = Array.isArray(ps) ? await Promise.all(ps.map((p) => kvGet(env, `edeka:err:${p.key}`))) : [];
+        const errs = Array.isArray(ps) ? await Promise.all(ps.map((p) => kvGet(env, errKey(p.key)))) : [];
         const watch = (await kvGet<Watched[]>(env, 'edeka:watch'))?.map((x) => `${x.name} (zuletzt ${new Date(x.lastSeen ?? 0).toISOString()})`);
-        const first = idx?.prospekte[0] ? ((await kvGet<Offer[]>(env, `edeka:pdf:${idx.prospekte[0].key}`)) ?? []).slice(0, 15) : [];
+        const first = idx?.prospekte[0] ? ((await kvGet<Offer[]>(env, pdfKey(idx.prospekte[0].key))) ?? []).slice(0, 15) : [];
         return json({ market: m, watch, idx, prospekte: ps, errors: errs, sample: first.map((o) => `${o.name} | ${o.pack ?? ''} | ${o.price} | ${o.group} | ${o.diet} | S.${o.page ?? '?'}`) });
       }
 

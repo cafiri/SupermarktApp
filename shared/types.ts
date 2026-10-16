@@ -64,6 +64,18 @@ export interface Offer {
   flight?: number;
   /** Seite im Prospekt (1-basiert), falls bekannt */
   page?: number;
+  /** Ausschnitt aus der Prospektseite als Produktbild (EDEKA-Prospekte) */
+  crop?: Crop;
+}
+
+/** Bildausschnitt: Lage auf der Seite als Anteile (0–1), ratio = Breite/Höhe der Seite */
+export interface Crop {
+  src: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  ratio: number;
 }
 
 /** Ein Prospekt zum Durchblättern */
@@ -138,6 +150,7 @@ export interface RecipeIngredient {
     packs: number;
     image?: string;
     page?: number;
+    crop?: Crop;
     validFrom?: string;
     validTo?: string;
   };

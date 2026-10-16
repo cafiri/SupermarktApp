@@ -1354,8 +1354,10 @@ h3 {
   cursor: zoom-out;
 }
 .img-zoom img {
-  max-width: 100%;
-  max-height: 75vh;
+  /* Immer bildschirmfüllend hochskalieren, auch wenn das Originalbild kleiner ist */
+  width: min(100%, 640px);
+  height: auto;
+  max-height: 78vh;
   object-fit: contain;
   background: #fff;
   border-radius: var(--r-md);
@@ -1369,6 +1371,20 @@ h3 {
 .img-zoom-hint {
   font-size: 0.8rem;
   opacity: 0.7;
+}
+.crop {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: 6px;
+  background: #fff;
+}
+.crop img {
+  position: absolute;
+  max-width: none;
+}
+.img-zoom .crop {
+  border-radius: var(--r-md);
 }
 .cleared p {
   margin: 4px 0;
@@ -1389,4 +1405,11 @@ h3 {
     transition: none !important;
     animation: none !important;
   }
+}
+.img-zoom .crop img {
+  padding: 0;
+  max-width: none;
+  max-height: none;
+  border-radius: 0;
+  background: none;
 }

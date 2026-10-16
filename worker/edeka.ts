@@ -103,6 +103,8 @@ export interface Prospekt {
   /** Basis-URL des Blätterkatalogs (…/blaetterkatalog) */
   base: string;
   pageCount: number;
+  /** Breite/Höhe der Seitenbilder */
+  ratio: number;
   validFrom: string;
   validTo: string;
   preview: boolean;
@@ -129,6 +131,10 @@ export async function findProspekte(m: EdekaMarket): Promise<Prospekt[]> {
       pdfUrl: `${base}/pdf/complete.pdf`,
       base,
       pageCount: Number(xml.match(/pages="(\d+)"/)?.[1] ?? 0),
+      ratio: (() => {
+        const m = xml.match(/name="large"\s+width="(\d+)"\s+height="(\d+)"/);
+        return m ? Number(m[1]) / Number(m[2]) : 1100 / 1633;
+      })(),
       validFrom: `${validFrom}T00:00:00+02:00`,
       validTo: `${validTo}T23:59:59+02:00`,
       preview: !!f[1],
@@ -157,8 +163,21 @@ const SCHEMA = {
           diet: { type: 'string', enum: ['fleisch', 'fisch', 'vegetarisch', 'vegan'] },
           cooking: { type: 'boolean', description: 'true, wenn als Kochzutat brauchbar (nicht Süßes, Getränke, Fertiggerichte)' },
           page: { type: 'integer', description: 'Seitennummer im Prospekt, beginnend bei 1' },
+          box: {
+            type: 'object',
+            description:
+              'Wo das Angebot auf der Seite steht (Produktfoto + Preisschild), als Anteile der Seitenbreite bzw. -höhe von 0 bis 1. x,y = linke obere Ecke.',
+            properties: {
+              x: { type: 'number' },
+              y: { type: 'number' },
+              w: { type: 'number' },
+              h: { type: 'number' },
+            },
+            required: ['x', 'y', 'w', 'h'],
+            additionalProperties: false,
+          },
         },
-        required: ['name', 'brand', 'price', 'oldPrice', 'pack', 'description', 'group', 'diet', 'cooking', 'page'],
+        required: ['name', 'brand', 'price', 'oldPrice', 'pack', 'description', 'group', 'diet', 'cooking', 'page', 'box'],
         additionalProperties: false,
       },
     },
@@ -178,6 +197,7 @@ interface RawProspektOffer {
   diet: Diet;
   cooking: boolean;
   page: number;
+  box: { x: number; y: number; w: number; h: number };
 }
 
 /** Lässt Claude den PDF-Prospekt lesen und gibt die Lebensmittel-Angebote zurück */
@@ -203,6 +223,7 @@ export async function extractProspekt(m: EdekaMarket, p: Prospekt, apiKey: strin
                   'Preis = der groß gedruckte Aktionspreis in Euro (z. B. "-.99" = 0.99). Pfand nicht einrechnen.',
                   'Bei "versch. Sorten" das Produkt einmal aufnehmen und die Sorten kurz in description nennen.',
                   'Wenn ein Preis nur mit App/Karte gilt, das in description vermerken.',
+                  'Gib für jedes Angebot die Seite (page) und möglichst genau den Bereich (box) an, in dem Produktfoto und Preisschild stehen.',
                 ].join('\n'),
               },
             ],
@@ -245,7 +266,23 @@ export async function extractProspekt(m: EdekaMarket, p: Prospekt, apiKey: strin
       validTo: p.validTo,
       image: '',
       page: o.page > 0 ? o.page : undefined,
+      crop: cropFor(p, o),
     }));
+}
+
+const clamp = (n: number) => Math.min(1, Math.max(0, n));
+
+/** Bildausschnitt aus der Prospektseite, mit etwas Rand, damit nichts abgeschnitten wird */
+function cropFor(p: Prospekt, o: RawProspektOffer): Offer['crop'] {
+  const b = o.box;
+  if (!o.page || o.page < 1 || o.page > (p.pageCount || 99) || !b || !(b.w > 0.02) || !(b.h > 0.02)) return undefined;
+  const pad = 0.03;
+  const x = clamp(b.x - pad);
+  const y = clamp(b.y - pad * p.ratio);
+  const w = Math.min(1 - x, b.w + 2 * pad);
+  const h = Math.min(1 - y, b.h + 2 * pad * p.ratio);
+  const r = (n: number) => Math.round(n * 1000) / 1000;
+  return { src: prospektPage(p, o.page, 'large'), x: r(x), y: r(y), w: r(w), h: r(h), ratio: r(p.ratio) };
 }
 
 function arrayBufferToBase64(buf: ArrayBuffer): string {

@@ -255,6 +255,7 @@ export function priceRecipe(raw: RawRecipe, byId: Map<number, Offer>, servings: 
           packs,
           image: o.image || undefined,
           page: o.page,
+          crop: o.crop,
           validFrom: o.validFrom,
           validTo: o.validTo,
         },

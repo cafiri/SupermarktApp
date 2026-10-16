@@ -1,4 +1,4 @@
-import type { Offer, Recipe } from '../shared/types';
+import type { Crop, Offer, Recipe } from '../shared/types';
 
 export interface ListItem {
   key: string;
@@ -8,6 +8,7 @@ export interface ListItem {
   estimated: boolean;
   packs?: number;
   image?: string;
+  crop?: Crop;
   recipes: string[];
 }
 
@@ -30,7 +31,7 @@ export function mergeRecipes(recipes: Recipe[], singles: Offer[] = []): MergedLi
           pantry: false,
           cost: o.price,
           usedCost: o.price,
-          offer: { id: o.id, chain: o.chain, name: o.name, brand: o.brand, pack: o.pack, price: o.price, packs: 1, image: o.image, page: o.page },
+          offer: { id: o.id, chain: o.chain, name: o.name, brand: o.brand, pack: o.pack, price: o.price, packs: 1, image: o.image, page: o.page, crop: o.crop },
         })),
       } as unknown as Recipe)
     : null;
@@ -56,6 +57,7 @@ export function mergeRecipes(recipes: Recipe[], singles: Offer[] = []): MergedLi
           estimated: false,
           packs,
           image: o.image,
+          crop: o.crop,
           recipes: [...new Set([...(prev?.recipes ?? []), r.title])],
         });
       } else if (i.pantry) {
