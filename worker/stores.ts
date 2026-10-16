@@ -13,21 +13,26 @@ const BRANDS: [RegExp, string][] = [
   [/^kaufland$/i, 'Kaufland'],
 ];
 
-function km(aLat: number, aLon: number, bLat: number, bLon: number): number {
+export function km(aLat: number, aLon: number, bLat: number, bLon: number): number {
   const r = (d: number) => (d * Math.PI) / 180;
   const h = Math.sin(r(bLat - aLat) / 2) ** 2 + Math.cos(r(aLat)) * Math.cos(r(bLat)) * Math.sin(r(bLon - aLon) / 2) ** 2;
   return 6371 * 2 * Math.asin(Math.sqrt(h));
 }
 
-export async function nearestStores(plz: string): Promise<StoreInfo[]> {
+/** Mittelpunkt einer Postleitzahl */
+export async function geocode(plz: string): Promise<{ lat: number; lon: number } | null> {
   const geo = await fetch(`https://nominatim.openstreetmap.org/search?postalcode=${plz}&country=de&format=json&limit=1`, {
     headers: { 'user-agent': UA, 'accept-language': 'de' },
   });
   if (!geo.ok) throw new Error(`Ortssuche antwortet mit ${geo.status}`);
   const [place] = (await geo.json()) as { lat: string; lon: string }[];
-  if (!place) return [];
-  const lat = Number(place.lat);
-  const lon = Number(place.lon);
+  return place ? { lat: Number(place.lat), lon: Number(place.lon) } : null;
+}
+
+export async function nearestStores(plz: string, center?: { lat: number; lon: number } | null): Promise<StoreInfo[]> {
+  const c = center ?? (await geocode(plz));
+  if (!c) return [];
+  const { lat, lon } = c;
 
   const q = `[out:json][timeout:25];nwr["shop"="supermarket"](around:20000,${lat},${lon});out center tags;`;
   const res = await fetch('https://overpass-api.de/api/interpreter', {

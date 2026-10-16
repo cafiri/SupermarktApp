@@ -21,6 +21,10 @@ export interface EdekaMarket {
   street: string;
   city: string;
   channel: string;
+  lat?: number;
+  lon?: number;
+  /** Entfernung zur gesuchten PLZ in km */
+  distanceKm?: number;
 }
 
 export async function searchMarkets(plz: string): Promise<EdekaMarket[]> {
@@ -34,11 +38,14 @@ export async function searchMarkets(plz: string): Promise<EdekaMarket[]> {
     street: m.contact?.address?.street ?? '',
     city: m.contact?.address?.city?.name ?? '',
     channel: m.distributionChannelName ?? 'EDEKA',
+    lat: m.coordinates?.lat ? Number(m.coordinates.lat) : undefined,
+    lon: m.coordinates?.lon ? Number(m.coordinates.lon) : undefined,
   }));
 }
 
 export function marketChainInfo(m: EdekaMarket, count = 0, note?: string): ChainInfo {
-  return { name: m.name, count, kind: 'markt', marketId: m.id, marketNo: m.marketNo, address: `${m.street}, ${m.city}`, note };
+  const dist = m.distanceKm != null ? ` · ${m.distanceKm.toLocaleString('de-DE')} km` : '';
+  return { name: m.name, count, kind: 'markt', marketId: m.id, marketNo: m.marketNo, address: `${m.street}, ${m.city}${dist}`, note };
 }
 
 /** Bundesweite Online-Angebote eines Markts (meist nur 10–30 Stück) */

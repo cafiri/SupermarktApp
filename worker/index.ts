@@ -15,7 +15,7 @@ import {
   type Prospekt,
 } from './edeka';
 import { addCost, costUsd, monthCost, type Tracker } from './costs';
-import { nearestStores } from './stores';
+import { geocode, km, nearestStores } from './stores';
 import type { ChainInfo, Leaflet, LeafletsResponse, Offer, OffersResponse, RecipeRequest } from '../shared/types';
 
 export interface Env {
@@ -86,13 +86,31 @@ async function edekaOffers(env: Env, m: EdekaMarket): Promise<{ offers: Offer[];
   };
 }
 
+// Märkte, deren Prospekt eingelesen wird. Nur Märkte, die jemand in der App ausgewählt hat;
+// wer 14 Tage nicht mehr abgefragt wurde, fliegt wieder raus.
+type Watched = EdekaMarket & { lastSeen: number };
+const WATCH_DAYS = 14;
+
 async function watchMarket(env: Env, m: EdekaMarket) {
-  const list = (await kvGet<EdekaMarket[]>(env, 'edeka:watch')) ?? [];
-  if (!list.some((x) => x.id === m.id)) await kvPut(env, 'edeka:watch', [...list, m]);
+  const list = (await kvGet<Watched[]>(env, 'edeka:watch')) ?? [];
+  const hit = list.find((x) => x.id === m.id);
+  if (hit && Date.now() - (hit.lastSeen ?? 0) < 86400_000) return; // höchstens einmal am Tag schreiben
+  const next = [...list.filter((x) => x.id !== m.id), { ...m, lastSeen: Date.now() }];
+  await kvPut(env, 'edeka:watch', next);
 }
 
+const centerOf = (env: Env, plz: string) => cached(env, `geo:${plz}`, 90 * 24 * HOUR, () => geocode(plz));
+
 async function nearbyMarkets(env: Env, plz: string): Promise<EdekaMarket[]> {
-  const list = await cached(env, `edeka:near:${plz}`, 24 * HOUR, () => searchMarkets(plz));
+  const list = await cached(env, `edeka:near2:${plz}`, 24 * HOUR, async () => {
+    const [found, c] = await Promise.all([searchMarkets(plz), centerOf(env, plz).catch(() => null)]);
+    if (!c) return found.slice(0, 6);
+    // Nur Märkte im Umkreis von 15 km, nächste zuerst
+    return found
+      .map((m) => ({ ...m, distanceKm: m.lat && m.lon ? Math.round(km(c.lat, c.lon, m.lat, m.lon) * 10) / 10 : undefined }))
+      .filter((m) => m.distanceKm == null || m.distanceKm <= 15)
+      .sort((a, b) => (a.distanceKm ?? 99) - (b.distanceKm ?? 99));
+  });
   // Märkte merken, damit sie später über die ID gefunden werden
   await Promise.all(list.map((m) => (env.CACHE ? kvPut(env, `edeka:m:${m.id}`, m, 90 * 86400) : null)));
   for (const m of list) memo.set(`edeka:m:${m.id}`, { at: Date.now(), data: m });
@@ -221,8 +239,10 @@ async function processMarket(env: Env, m: EdekaMarket, maxExtract = 1): Promise<
     const key = `edeka:pdf:${p.key}`;
     let offers = await kvGet<Offer[]>(env, key);
     if (!offers && extracted < maxExtract) {
-      const err = await kvGet<{ at: number }>(env, `edeka:err:${p.key}`);
-      if (err && Date.now() - err.at < 3 * HOUR) {
+      const err = await kvGet<{ at: number; tries?: number }>(env, `edeka:err:${p.key}`);
+      if (err && (err.tries ?? 1) >= 2) {
+        log.push(`${p.key}: zweimal fehlgeschlagen – kein weiterer automatischer Versuch`);
+      } else if (err && Date.now() - err.at < 3 * HOUR) {
         log.push(`${p.key}: letzter Versuch fehlgeschlagen, warte`);
       } else {
         extracted++;
@@ -237,7 +257,7 @@ async function processMarket(env: Env, m: EdekaMarket, maxExtract = 1): Promise<
           await kvPut(env, key, offers, ttl);
           log.push(`${p.key}: ${offers.length} Angebote eingelesen (${Math.round((Date.now() - t0) / 1000)} s)`);
         } catch (e) {
-          await kvPut(env, `edeka:err:${p.key}`, { at: Date.now(), msg: String(e) }, 86400);
+          await kvPut(env, `edeka:err:${p.key}`, { at: Date.now(), tries: (err?.tries ?? 0) + 1, msg: String(e) }, 8 * 86400);
           log.push(`${p.key}: Fehler ${e instanceof Error ? e.message : String(e)}`);
         }
       }
@@ -249,7 +269,9 @@ async function processMarket(env: Env, m: EdekaMarket, maxExtract = 1): Promise<
 }
 
 async function runCron(env: Env): Promise<string[]> {
-  const list = (await kvGet<EdekaMarket[]>(env, 'edeka:watch')) ?? [];
+  const all = (await kvGet<Watched[]>(env, 'edeka:watch')) ?? [];
+  const list = all.filter((m) => Date.now() - (m.lastSeen ?? Date.now()) < WATCH_DAYS * 86400_000);
+  if (list.length !== all.length) await kvPut(env, 'edeka:watch', list);
   const log: string[] = [];
   for (const m of list) {
     try {
@@ -302,7 +324,8 @@ export default {
       if (url.pathname === '/api/stores') {
         const plz = url.searchParams.get('plz');
         if (!validPlz(plz)) return error('Bitte eine 5-stellige PLZ angeben.', 400);
-        return json({ stores: await cached(env, `stores:${plz}`, 7 * 24 * HOUR, () => nearestStores(plz)) });
+        const c = await centerOf(env, plz).catch(() => null);
+        return json({ stores: await cached(env, `stores:${plz}`, 7 * 24 * HOUR, () => nearestStores(plz, c)) });
       }
 
       if (url.pathname === '/api/leaflets') {
@@ -318,7 +341,7 @@ export default {
         const idx = await kvGet<ProspektIndex>(env, `edeka:idx:${m.marketNo}`);
         const ps = await findProspekte(m).catch((e) => String(e));
         const errs = Array.isArray(ps) ? await Promise.all(ps.map((p) => kvGet(env, `edeka:err:${p.key}`))) : [];
-        const watch = (await kvGet<EdekaMarket[]>(env, 'edeka:watch'))?.map((x) => x.name);
+        const watch = (await kvGet<Watched[]>(env, 'edeka:watch'))?.map((x) => `${x.name} (zuletzt ${new Date(x.lastSeen ?? 0).toISOString()})`);
         const first = idx?.prospekte[0] ? ((await kvGet<Offer[]>(env, `edeka:pdf:${idx.prospekte[0].key}`)) ?? []).slice(0, 15) : [];
         return json({ market: m, watch, idx, prospekte: ps, errors: errs, sample: first.map((o) => `${o.name} | ${o.pack ?? ''} | ${o.price} | ${o.group} | ${o.diet} | S.${o.page ?? '?'}`) });
       }
