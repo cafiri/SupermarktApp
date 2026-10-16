@@ -11,6 +11,8 @@ export function AppInfo() {
   const [check, setCheck] = useState<'idle' | 'checking' | 'aktuell' | 'neu' | 'fehler'>('idle');
   const [latest, setLatest] = useState<Build | null>(null);
   const [confirm, setConfirm] = useState(false);
+  const [cleared, setCleared] = useState<string[] | null>(null);
+  const [busy, setBusy] = useState(false);
 
   async function checkUpdate() {
     setCheck('checking');
@@ -32,18 +34,48 @@ export function AppInfo() {
   }
 
   async function clearAll() {
-    // Alles, was diese App im Browser gespeichert hat – andere Websites bleiben unberührt
+    setBusy(true);
+    const done: string[] = [];
+    // Merkliste behalten
+    const watch = localStorage.getItem('watch');
+    try {
+      // Server antwortet mit "Clear-Site-Data": löscht Cookies und Speicher – nur für diese Website
+      const res = await fetch('/api/clear', { cache: 'no-store', redirect: 'manual' });
+      if (res.ok) done.push('Cookies');
+    } catch {
+      /* offline – lokal trotzdem löschen */
+    }
     try {
       localStorage.clear();
       sessionStorage.clear();
-      if ('caches' in window) await Promise.all((await caches.keys()).map((k) => caches.delete(k)));
+      done.push('Märkte, Korb, Einkaufsliste und Rezepte');
+    } catch {
+      /* egal */
+    }
+    try {
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+        done.push(`Zwischenspeicher (${keys.length})`);
+      }
       const regs = (await navigator.serviceWorker?.getRegistrations()) ?? [];
       await Promise.all(regs.map((r) => r.unregister()));
+      if (regs.length) done.push('Offline-Version der App');
     } catch {
-      /* weiter mit dem Server-Teil */
+      /* egal */
     }
-    // Der Server antwortet mit "Clear-Site-Data" und löscht damit auch die Cookies (inkl. Anmeldung) dieser Website
-    location.href = '/api/clear';
+    // Merkliste zurücklegen (auch nach kurzer Verzögerung, falls der Server-Teil später greift)
+    const restore = () => {
+      try {
+        if (watch) localStorage.setItem('watch', watch);
+      } catch {
+        /* egal */
+      }
+    };
+    restore();
+    setTimeout(restore, 500);
+    setBusy(false);
+    setCleared(done);
   }
 
   return (
@@ -65,19 +97,37 @@ export function AppInfo() {
       {check === 'fehler' && <p className="error">Konnte nicht prüfen. Bist du online und angemeldet?</p>}
 
       <div className="danger">
-        {!confirm ? (
+        {cleared ? (
+          <div className="cleared" role="status">
+            <p>
+              <strong>✓ Gelöscht:</strong> {cleared.join(', ')}. Deine Merkliste ist geblieben.
+            </p>
+            <p className="small muted">
+              Beim Neustart meldet Cloudflare dich meist automatisch wieder an, weil es sich den Login auf seiner eigenen Seite merkt. Willst du
+              dich komplett abmelden, nimm „Abmelden“.
+            </p>
+            <div className="app-actions">
+              <button className="primary small-btn" onClick={() => location.replace('/')}>
+                App neu starten
+              </button>
+              <a className="secondary small-btn" href="/cdn-cgi/access/logout">
+                Abmelden
+              </a>
+            </div>
+          </div>
+        ) : !confirm ? (
           <button className="link danger-link" onClick={() => setConfirm(true)}>
             Alle Daten dieser App löschen
           </button>
         ) : (
           <>
             <p className="small">
-              Löscht nur für diese App: Märkte, Korb, Einkaufsliste, Merkliste, gespeicherte Rezepte, Zwischenspeicher und Cookies. Du musst dich
-              danach neu anmelden. Andere Websites bleiben unberührt.
+              Löscht nur für diese App: Märkte, Korb, Einkaufsliste, gespeicherte Rezepte, Zwischenspeicher und Cookies. Die Merkliste bleibt.
+              Andere Websites bleiben unberührt.
             </p>
             <div className="app-actions">
-              <button className="primary small-btn danger-btn" onClick={clearAll}>
-                Ja, löschen
+              <button className="primary small-btn danger-btn" onClick={clearAll} disabled={busy}>
+                {busy ? 'Lösche …' : 'Ja, löschen'}
               </button>
               <button className="secondary small-btn" onClick={() => setConfirm(false)}>
                 Abbrechen

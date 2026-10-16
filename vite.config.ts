@@ -53,6 +53,10 @@ function mockApi(): Plugin {
           return send(JSON.parse(readFileSync('test/fixture-recipes.json', 'utf8')), 1500);
         }
         if (req.url.startsWith('/version.json')) return send(BUILD, 0);
+        if (req.url.startsWith('/api/clear')) {
+          res.setHeader('clear-site-data', '"cookies", "storage"');
+          return send({ ok: true }, 0);
+        }
         if (req.url.startsWith('/api/health')) return send({ ok: true, hasKey: false, model: 'mock', monthCostUsd: 0.42, budgetUsd: 8, recipesToday: 2, recipesPerDay: 15 });
         if (req.url.startsWith('/api/deals')) {
           return send({ weeksOfHistory: 0, deals: [{ offerId: 1008, reasons: ['−45 % reduziert'], score: 50 }, { offerId: 1001, reasons: ['günstigster Hackfleisch-Preis diese Woche'], score: 30 }] });
