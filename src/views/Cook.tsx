@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import type { DietChoice, Offer, Recipe, RecipeRequest, RecipesResponse } from '../../shared/types';
 import { api, LoginError, type Settings } from '../store';
 import { DIET_LABEL, DIET_SHORT, euro, shortChain } from '../format';
@@ -18,7 +18,6 @@ interface Props {
   results: RecipesResponse | null;
   onResults: (r: RecipesResponse) => void;
   onOpen: (r: Recipe) => void;
-  autoRun: number;
   ready: boolean;
   goToMarkets: () => void;
 }
@@ -66,11 +65,6 @@ export function CookView(p: Props) {
     }
   }
 
-  // "Rezepte damit" aus der Angebotsliste startet direkt
-  useEffect(() => {
-    if (p.autoRun > 0) void generate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [p.autoRun]);
 
   if (!p.ready) {
     return (

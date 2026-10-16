@@ -26,7 +26,6 @@ export default function App() {
   const offers = useOffers(plz || null, markets);
   const [focus, setFocus] = useState<Offer | null>(null);
   const [results, setResults] = useState<RecipesResponse | null>(() => loadLastRecipes());
-  const [autoRun, setAutoRun] = useState(0);
   const [detail, setDetail] = useState<Recipe | null>(null);
   const [leaflet, setLeaflet] = useState<{ chain: string; leaflets: Leaflet[] } | null>(null);
 
@@ -60,7 +59,6 @@ export default function App() {
     if (leaflet) history.back();
     setFocus(o);
     setTab('kochen');
-    setAutoRun((n) => n + 1);
     window.scrollTo(0, 0);
   }, []);
 
@@ -131,7 +129,6 @@ export default function App() {
             results={results}
             onResults={onResults}
             onOpen={openDetail}
-            autoRun={autoRun}
             ready={!!plz && activeChains.length > 0}
             goToMarkets={() => setTab('maerkte')}
           />
