@@ -120,6 +120,7 @@ const TOOL = {
                   },
                 },
                 required: ['name', 'quantity', 'offerId', 'packs', 'estimatedPrice', 'usedFraction', 'pantry'],
+                additionalProperties: false,
               },
             },
             steps: { type: 'array', items: { type: 'string' } },
@@ -127,13 +128,15 @@ const TOOL = {
               type: 'string',
               description: 'Hinweis zu Aufbewahrung/Einfrieren beim Vorkochen, sonst kurzer Resteverwertungs-Hinweis',
             },
-            tip: { type: 'string' },
+            tip: { type: 'string', description: 'Optionaler Tipp, sonst leerer String' },
           },
-          required: ['title', 'description', 'minutes', 'diet', 'ingredients', 'steps', 'storage'],
+          required: ['title', 'description', 'minutes', 'diet', 'ingredients', 'steps', 'storage', 'tip'],
+          additionalProperties: false,
         },
       },
     },
     required: ['recipes'],
+    additionalProperties: false,
   },
 } as const;
 
@@ -240,7 +243,7 @@ export function priceRecipe(raw: RawRecipe, byId: Map<number, Offer>, servings: 
     ingredients,
     steps: raw.steps,
     storage: raw.storage,
-    tip: raw.tip,
+    tip: raw.tip?.trim() || undefined,
     chains,
     offerCost,
     estimatedCost,
@@ -269,20 +272,25 @@ export async function generateRecipes(req: RecipeRequest, allOffers: Offer[], en
     },
     body: JSON.stringify({
       model,
-      max_tokens: 12000,
+      max_tokens: 16000,
       system,
       messages: [{ role: 'user', content: user }],
-      tools: [TOOL],
-      tool_choice: { type: 'tool', name: TOOL.name },
+      output_config: { format: { type: 'json_schema', schema: TOOL.input_schema } },
     }),
   });
   if (!res.ok) {
     const t = await res.text();
     throw new Error(`Claude API Fehler ${res.status}: ${t.slice(0, 300)}`);
   }
-  const data = (await res.json()) as { content: { type: string; input?: { recipes: RawRecipe[] } }[] };
-  const block = data.content.find((c) => c.type === 'tool_use');
-  const raws = block?.input?.recipes ?? [];
+  const data = (await res.json()) as { stop_reason?: string; content: { type: string; text?: string }[] };
+  if (data.stop_reason === 'max_tokens') throw new Error('Die Antwort der KI war zu lang und wurde abgeschnitten. Bitte nochmal versuchen.');
+  const text = data.content.find((c) => c.type === 'text')?.text ?? '';
+  let raws: RawRecipe[] = [];
+  try {
+    raws = (JSON.parse(text) as { recipes: RawRecipe[] }).recipes ?? [];
+  } catch {
+    throw new Error('Die Antwort der KI war kein gültiges JSON. Bitte nochmal versuchen.');
+  }
   if (!raws.length) throw new Error('Die KI hat keine Rezepte geliefert. Bitte nochmal versuchen.');
 
   const byId = new Map(allOffers.map((o) => [o.id, o]));
