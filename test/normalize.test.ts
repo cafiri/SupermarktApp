@@ -36,3 +36,17 @@ eq(guessGroup('Superberliner', 'vorrat'), 'vorrat', 'berliner group');
 eq(guessGroup('Home Barista Forte', 'vorrat'), 'getraenke', 'barista');
 eq(guessGroup('Lachsfiletportionen Frisch; aus Norwegen', 'vorrat'), 'fisch', 'lachs');
 eq(guessGroup('Weihenstephan Tafelbutter oder Die Streichzarte versch. Sorten, 250g', 'vorrat'), 'milch', 'butter');
+
+// Kaufempfehlungen
+import { computeDealsFrom, productKey, isoWeek } from '../worker/deals';
+const mk = (id: number, name: string, price: number, ref: number, extra: Partial<Offer> = {}) =>
+  ({ id, chain: 'REWE', name, price, refPrice: ref, refUnit: 'kg', category: 'Hackfleisch', group: 'fleisch', cooking: true, validFrom: '2020-01-01T00:00:00Z', validTo: '2099-01-01T00:00:00Z', desc: '', diet: 'fleisch', multi: false, image: '', ...extra }) as Offer;
+const cur = [mk(1, 'Hack A', 2.99, 5.98, { oldPrice: 6.49 }), mk(2, 'Hack B', 4.99, 9.98), mk(3, 'Hack C', 5.49, 10.98), mk(4, 'Hack D', 5.99, 11.98)];
+const d0 = computeDealsFrom(cur, []);
+eq(d0.deals.map((d) => d.offerId), [1], 'deals ohne verlauf');
+eq(d0.deals[0].reasons, ['−54 % reduziert', 'günstigster Hackfleisch-Preis diese Woche'], 'deal gruende');
+const hist = [1, 2, 3, 4].map((i) => ({ week: `w${i}`, items: { [productKey(cur[1])]: 12.5 } }));
+const d1 = computeDealsFrom(cur, hist);
+eq(d1.deals.find((d) => d.offerId === 2)?.reasons, ['20 % günstiger als sonst'], 'guenstiger als sonst');
+eq(d1.deals.find((d) => d.offerId === 3)?.reasons, ['seit 4 Wochen nicht im Angebot'], 'selten');
+eq(isoWeek(new Date('2026-10-16T12:00:00Z')), '2026-W42', 'kw');

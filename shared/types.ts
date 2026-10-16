@@ -194,3 +194,26 @@ export interface StoreInfo {
 export interface StoresResponse {
   stores: StoreInfo[];
 }
+
+/** Kaufempfehlung zu einem Angebot */
+export interface Deal {
+  offerId: number;
+  reasons: string[];
+  score: number;
+}
+
+export interface DealsResponse {
+  deals: Deal[];
+  /** Wie viele frühere Wochen für den Preisvergleich vorliegen */
+  weeksOfHistory: number;
+}
+
+export interface ProspektStatus {
+  markets: {
+    market: string;
+    watched: boolean;
+    prospekte: { validFrom: string; validTo: string; preview: boolean; count: number; extractedAt?: string; seconds?: number; costUsd?: number }[];
+  }[];
+  lastCheck: string | null;
+  monthCostUsd: number;
+}

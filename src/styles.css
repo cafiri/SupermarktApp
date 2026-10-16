@@ -1233,6 +1233,84 @@ h3 {
   line-height: 18px;
 }
 
+.segmented.four {
+  grid-template-columns: repeat(4, 1fr);
+}
+.segmented.four button {
+  font-size: 0.82rem;
+  padding: 10px 2px;
+}
+
+/* Merkliste */
+.watch-add {
+  display: flex;
+  gap: 8px;
+}
+.watch-add input {
+  flex: 1;
+  min-width: 0;
+}
+.watch-group {
+  margin-bottom: 18px;
+}
+.watch-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.watch-head h3 {
+  font-family: var(--display);
+  font-size: 1.35rem;
+}
+.watch-hit {
+  margin: 0 0 8px;
+  font-weight: 700;
+  color: var(--basil);
+}
+.watch-none {
+  margin: 0;
+}
+
+/* Tipps */
+.deal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.deal-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 16px 6px;
+}
+.deal-reason {
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--tag);
+  color: var(--tag-ink);
+}
+
+/* Prospekt-Status */
+.status-market + .status-market {
+  margin-top: 10px;
+}
+.status-market h3 {
+  font-size: 1rem;
+  margin: 8px 0 4px;
+}
+.status-market ul {
+  margin: 0;
+  padding-left: 1.1em;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.status p {
+  margin: 6px 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;

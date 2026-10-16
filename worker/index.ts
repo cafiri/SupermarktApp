@@ -16,6 +16,7 @@ import {
 } from './edeka';
 import { addCost, costUsd, monthCost, type Tracker } from './costs';
 import { geocode, km, nearestStores } from './stores';
+import { computeDealsFrom, snapshot, isoWeek, type WeekSnapshot } from './deals';
 import type { ChainInfo, Leaflet, LeafletsResponse, Offer, OffersResponse, RecipeRequest } from '../shared/types';
 
 export interface Env {
@@ -66,8 +67,13 @@ async function kvPut(env: Env, key: string, value: unknown, ttlSec?: number) {
 
 // ---------- Angebote zusammenführen ----------
 
+interface ProspektMeta {
+  extractedAt?: string;
+  seconds?: number;
+  costUsd?: number;
+}
 interface ProspektIndex {
-  prospekte: (Pick<Prospekt, 'key' | 'validFrom' | 'validTo' | 'preview'> & { count: number })[];
+  prospekte: (Pick<Prospekt, 'key' | 'validFrom' | 'validTo' | 'preview'> & { count: number } & ProspektMeta)[];
 }
 
 async function edekaOffers(env: Env, m: EdekaMarket): Promise<{ offers: Offer[]; note?: string }> {
@@ -172,6 +178,28 @@ export async function getOffers(env: Env, plz: string, marketIds: number[] = [],
   };
 }
 
+// ---------- Kaufempfehlungen ----------
+
+/** Einmal pro Woche einen Schnappschuss der Preise ablegen (Grundlage für "selten" / "günstiger als sonst") */
+async function ensureSnapshot(env: Env, plz: string, offers: Offer[]) {
+  const key = `hist:${plz}:${isoWeek(new Date())}`;
+  if (memo.has(key) || !env.CACHE || !offers.length) return;
+  if (!(await env.CACHE.get(key))) await kvPut(env, key, snapshot(offers), 200 * 86400);
+  memo.set(key, { at: Date.now(), data: true });
+}
+
+async function computeDeals(env: Env, scope: string, offers: Offer[]) {
+  const now = new Date();
+  await ensureSnapshot(env, scope, offers);
+  const weeks: WeekSnapshot[] = [];
+  for (let i = 1; i <= 12; i++) {
+    const w = isoWeek(new Date(now.getTime() - i * 7 * 86400_000));
+    const snap = await kvGet<WeekSnapshot>(env, `hist:${scope}:${w}`);
+    if (snap) weeks.push(snap);
+  }
+  return computeDealsFrom(offers, weeks);
+}
+
 // ---------- Prospekte zum Blättern ----------
 
 async function getLeaflets(env: Env, plz: string, marketIds: number[]): Promise<LeafletsResponse> {
@@ -252,9 +280,15 @@ async function processMarket(env: Env, m: EdekaMarket, maxExtract = 1): Promise<
             log.push('Monatsbudget erreicht – Prospekt wird nicht eingelesen');
             break;
           }
-          offers = await extractProspekt(m, p, env.ANTHROPIC_API_KEY, env.EXTRACT_MODEL || env.MODEL || 'claude-sonnet-5-5', tracker(env));
+          let cost = 0;
+          const track: Tracker = async (model, usage) => {
+            cost += costUsd(model, usage);
+            await tracker(env)(model, usage);
+          };
+          offers = await extractProspekt(m, p, env.ANTHROPIC_API_KEY, env.EXTRACT_MODEL || env.MODEL || 'claude-sonnet-5-5', track);
           const ttl = Math.ceil((Date.parse(p.validTo) - Date.now()) / 1000) + 86400;
           await kvPut(env, key, offers, ttl);
+          await kvPut(env, `edeka:meta:${p.key}`, { extractedAt: new Date().toISOString(), seconds: Math.round((Date.now() - t0) / 1000), costUsd: Math.round(cost * 100) / 100 }, ttl);
           log.push(`${p.key}: ${offers.length} Angebote eingelesen (${Math.round((Date.now() - t0) / 1000)} s)`);
         } catch (e) {
           await kvPut(env, `edeka:err:${p.key}`, { at: Date.now(), tries: (err?.tries ?? 0) + 1, msg: String(e) }, 8 * 86400);
@@ -262,7 +296,10 @@ async function processMarket(env: Env, m: EdekaMarket, maxExtract = 1): Promise<
         }
       }
     }
-    if (offers) idx.prospekte.push({ key: p.key, validFrom: p.validFrom, validTo: p.validTo, preview: p.preview, count: offers.length });
+    if (offers) {
+      const meta = await kvGet<ProspektMeta>(env, `edeka:meta:${p.key}`);
+      idx.prospekte.push({ key: p.key, validFrom: p.validFrom, validTo: p.validTo, preview: p.preview, count: offers.length, ...meta });
+    }
   }
   await kvPut(env, `edeka:idx:${m.marketNo}`, idx, 14 * 86400);
   return log;
@@ -273,6 +310,7 @@ async function runCron(env: Env): Promise<string[]> {
   const list = all.filter((m) => Date.now() - (m.lastSeen ?? Date.now()) < WATCH_DAYS * 86400_000);
   if (list.length !== all.length) await kvPut(env, 'edeka:watch', list);
   const log: string[] = [];
+  await kvPut(env, 'cron:last', { at: new Date().toISOString(), markets: list.length });
   for (const m of list) {
     try {
       log.push(...(await processMarket(env, m)));
@@ -319,6 +357,33 @@ export default {
       if (url.pathname === '/api/img') {
         const u = url.searchParams.get('u');
         return u ? proxyImage(u) : error('Bild fehlt', 400);
+      }
+
+      // Welche Prospekte liegen eingelesen vor, und wann hat die KI sie gelesen?
+      if (url.pathname === '/api/status') {
+        const ids = parseIds(url.searchParams.get('markets'));
+        const markets = (await Promise.all(ids.map((id) => marketById(env, id)))).filter((m): m is EdekaMarket => !!m);
+        const prospekte = await Promise.all(
+          markets.map(async (m) => {
+            const idx = await kvGet<ProspektIndex>(env, `edeka:idx:${m.marketNo}`);
+            const watch = (await kvGet<Watched[]>(env, 'edeka:watch'))?.find((w) => w.id === m.id);
+            return {
+              market: m.name,
+              watched: !!watch,
+              prospekte: (idx?.prospekte ?? []).map(({ key, ...rest }) => rest),
+            };
+          }),
+        );
+        const cron = await kvGet<{ at: string }>(env, 'cron:last');
+        return json({ markets: prospekte, lastCheck: cron?.at ?? null, monthCostUsd: Math.round((await monthCost(env.CACHE)) * 100) / 100 });
+      }
+
+      if (url.pathname === '/api/deals') {
+        const plz = url.searchParams.get('plz');
+        if (!validPlz(plz)) return error('Bitte eine 5-stellige PLZ angeben.', 400);
+        const markets = parseIds(url.searchParams.get('markets'));
+        const data = await getOffers(env, plz, markets);
+        return json(await computeDeals(env, plz, data.offers));
       }
 
       if (url.pathname === '/api/stores') {
@@ -396,7 +461,9 @@ export default {
       if (url.pathname === '/api/offers' && request.method === 'GET') {
         const plz = url.searchParams.get('plz');
         if (!validPlz(plz)) return error('Bitte eine 5-stellige PLZ angeben.', 400);
-        return json(await getOffers(env, plz, parseIds(url.searchParams.get('markets')), url.searchParams.get('refresh') === '1'));
+        const data = await getOffers(env, plz, parseIds(url.searchParams.get('markets')), url.searchParams.get('refresh') === '1');
+        await ensureSnapshot(env, plz, data.offers).catch(() => undefined);
+        return json(data);
       }
 
       if (url.pathname === '/api/recipes' && request.method === 'POST') {

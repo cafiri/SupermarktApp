@@ -27,6 +27,15 @@ function mockApi(): Plugin {
           return send(JSON.parse(readFileSync('test/fixture-recipes.json', 'utf8')), 1500);
         }
         if (req.url.startsWith('/api/health')) return send({ ok: true, hasKey: false, model: 'mock', monthCostUsd: 0.42, budgetUsd: 8, recipesToday: 2, recipesPerDay: 15 });
+        if (req.url.startsWith('/api/deals')) {
+          return send({ weeksOfHistory: 0, deals: [{ offerId: 1008, reasons: ['−45 % reduziert'], score: 50 }, { offerId: 1001, reasons: ['günstigster Hackfleisch-Preis diese Woche'], score: 30 }] });
+        }
+        if (req.url.startsWith('/api/status')) {
+          return send({ lastCheck: new Date().toISOString(), monthCostUsd: 0.6, markets: [{ market: 'nah & gut Durasin', watched: true, prospekte: [
+            { validFrom: '2026-10-11T00:00:00+02:00', validTo: '2026-10-17T23:59:59+02:00', preview: false, count: 94 },
+            { validFrom: '2026-10-18T00:00:00+02:00', validTo: '2026-10-24T23:59:59+02:00', preview: true, count: 98, extractedAt: '2026-10-16T12:15:00+02:00', seconds: 140, costUsd: 0.21 },
+          ] }] });
+        }
         if (req.url.startsWith('/api/stores')) {
           return send({ stores: [
             { chain: 'REWE', name: 'REWE', address: 'Gifhorner Straße 4, 38536 Meinersen', distanceKm: 1.2 },

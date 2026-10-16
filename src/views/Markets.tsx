@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { ChainInfo, StoreInfo } from '../../shared/types';
+import type { ChainInfo, ProspektStatus, StoreInfo } from '../../shared/types';
 import { api, fetchOffers, type Settings, type Trip } from '../store';
 
 interface Health {
@@ -7,6 +7,53 @@ interface Health {
   budgetUsd: number;
   recipesToday: number;
   recipesPerDay: number;
+}
+
+const when = (iso: string) =>
+  new Date(iso).toLocaleString('de-DE', { weekday: 'short', day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' });
+const day = (iso: string) => new Date(iso).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'numeric' });
+
+/** Welche Prospekte die KI eingelesen hat – und wann */
+function ProspektInfo({ markets }: { markets: number[] }) {
+  const [s, setS] = useState<ProspektStatus | null>(null);
+  useEffect(() => {
+    if (!markets.length) return;
+    api<ProspektStatus>(`/api/status?markets=${markets.join(',')}`).then(setS).catch(() => setS(null));
+  }, [markets.join(',')]);
+  if (!markets.length) return null;
+  return (
+    <section className="card status">
+      <h2>Prospekte</h2>
+      <p className="muted small">
+        Lidl, REWE, Penny, Netto, Kaufland und ALDI Nord kommen fertig als Daten – ohne KI. Nur die Prospekte einzelner EDEKA-Märkte liest
+        die KI, und zwar jeden Prospekt genau einmal.
+      </p>
+      {!s && <p className="muted small">Lädt …</p>}
+      {s?.markets.map((m) => (
+        <div key={m.market} className="status-market">
+          <h3>{m.market}</h3>
+          {!m.prospekte.length && <p className="muted small">Noch kein Prospekt eingelesen – passiert innerhalb von 30 Minuten.</p>}
+          <ul>
+            {m.prospekte.map((p) => (
+              <li key={p.validFrom}>
+                <strong>
+                  {day(p.validFrom)} – {day(p.validTo)}
+                </strong>
+                {p.preview ? ' (nächste Woche)' : ''}
+                <span className="muted small">
+                  {' '}
+                  · {p.count} Angebote ·{' '}
+                  {p.extractedAt ? `von der KI gelesen ${when(p.extractedAt)}` : 'eingelesen (Zeitpunkt nicht erfasst)'}
+                  {p.costUsd != null ? ` · ${p.costUsd.toLocaleString('de-DE', { minimumFractionDigits: 2 })} $` : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+      {s?.lastCheck && <p className="muted small">Zuletzt nach neuen Prospekten geschaut: {when(s.lastCheck)}</p>}
+    </section>
+  );
 }
 
 function CostInfo() {
@@ -75,6 +122,7 @@ export function MarketsView(p: Props) {
           )
         }
       />
+      <ProspektInfo markets={p.trip?.markets ?? p.settings.markets ?? []} />
       <CostInfo />
       <p className="muted pad small">
         Ketten wie Lidl oder REWE haben in der ganzen Region dieselben Angebote. Bei EDEKA und nah & gut gilt der Prospekt des

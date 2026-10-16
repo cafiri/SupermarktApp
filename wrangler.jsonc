@@ -11,8 +11,8 @@
     "run_worker_first": ["/api/*"]
   },
   // Zwischenspeicher für Angebote, eingelesene Prospekte und das Tageslimit.
-  // Ohne "id" legt Cloudflare den Speicher beim ersten Deploy automatisch an.
-  "kv_namespaces": [{ "binding": "CACHE" }],
+  // Fest eingetragen, damit bei jedem Update derselbe Speicher verwendet wird.
+  "kv_namespaces": [{ "binding": "CACHE", "id": "9d11a6dcb1e041d4894d465974461c4b" }],
   // Alle 30 Minuten prüfen, ob es neue EDEKA-Prospekte zum Einlesen gibt
   "triggers": { "crons": ["*/30 * * * *"] },
   "vars": {
