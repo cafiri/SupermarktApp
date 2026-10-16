@@ -292,6 +292,39 @@ export default {
         return json(await getLeaflets(env, plz, parseIds(url.searchParams.get('markets'))));
       }
 
+      // Prüft, welche Quellen von Cloudflare aus erreichbar sind
+      if (url.pathname === '/api/debug/sources') {
+        const urls = [
+          'https://www.edeka.de/api/marketsearch/markets?searchstring=38536',
+          'https://www.edeka.de/eh/service/eh/offers?marketId=10007022',
+          'https://www.edeka.de/maerkte/801116/prospekte/',
+          'https://blaetterkatalog.edeka.de/MINDEN/8011165/blaetterkatalog/xml/catalog.xml',
+          'https://blaetterkatalog.edeka.de/MINDEN/8011165/blaetterkatalog/normal/bk_1.jpg',
+        ];
+        const variants: Record<string, Record<string, string>> = {
+          mobil: { 'user-agent': 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Mobile Safari/537.36', 'accept-language': 'de-DE,de;q=0.9' },
+          desktop: {
+            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36',
+            accept: 'text/html,application/json;q=0.9,*/*;q=0.8',
+            'accept-language': 'de-DE,de;q=0.9,en;q=0.8',
+            referer: 'https://www.edeka.de/',
+          },
+          ohne: {},
+        };
+        const out: Record<string, string> = {};
+        for (const [name, headers] of Object.entries(variants)) {
+          for (const u of urls) {
+            try {
+              const r = await fetch(u, { headers });
+              out[`${name} ${u}`] = `${r.status} ${r.headers.get('content-type') ?? ''} ${r.headers.get('server') ?? ''}`;
+            } catch (e) {
+              out[`${name} ${u}`] = String(e);
+            }
+          }
+        }
+        return json(out);
+      }
+
       if (url.pathname === '/api/health') {
         return json({ ok: true, hasKey: !!env.ANTHROPIC_API_KEY, hasCache: !!env.CACHE, model: env.MODEL ?? null });
       }
