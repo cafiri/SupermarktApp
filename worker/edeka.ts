@@ -223,7 +223,7 @@ export async function extractProspekt(m: EdekaMarket, p: Prospekt, apiKey: strin
                   'Preis = der groß gedruckte Aktionspreis in Euro (z. B. "-.99" = 0.99). Pfand nicht einrechnen.',
                   'Bei "versch. Sorten" das Produkt einmal aufnehmen und die Sorten kurz in description nennen.',
                   'Wenn ein Preis nur mit App/Karte gilt, das in description vermerken.',
-                  'Gib für jedes Angebot die Seite (page) und möglichst genau den Bereich (box) an, in dem Produktfoto und Preisschild stehen.',
+                  'Gib für jedes Angebot die Seite (page) und möglichst genau den Bereich (box) an, in dem Produktfoto und Preisschild stehen – als Anteile von 0 bis 1 (z. B. x=0.5 heißt Seitenmitte), NICHT in Prozent oder Pixeln.',
                 ].join('\n'),
               },
             ],
@@ -274,8 +274,13 @@ const clamp = (n: number) => Math.min(1, Math.max(0, n));
 
 /** Bildausschnitt aus der Prospektseite, mit etwas Rand, damit nichts abgeschnitten wird */
 function cropFor(p: Prospekt, o: RawProspektOffer): Offer['crop'] {
-  const b = o.box;
-  if (!o.page || o.page < 1 || o.page > (p.pageCount || 99) || !b || !(b.w > 0.02) || !(b.h > 0.02)) return undefined;
+  let b = o.box;
+  if (!o.page || o.page < 1 || o.page > (p.pageCount || 99) || !b) return undefined;
+  // Falls die KI Prozent (0–100) oder Pixel statt Anteilen liefert: umrechnen
+  const maxV = Math.max(b.x + b.w, b.y + b.h);
+  if (maxV > 1.5 && maxV <= 101) b = { x: b.x / 100, y: b.y / 100, w: b.w / 100, h: b.h / 100 };
+  else if (maxV > 101) b = { x: b.x / 1100, y: b.y / 1633, w: b.w / 1100, h: b.h / 1633 };
+  if (!(b.w > 0.02) || !(b.h > 0.02) || b.x >= 1 || b.y >= 1) return undefined;
   const pad = 0.03;
   const x = clamp(b.x - pad);
   const y = clamp(b.y - pad * p.ratio);

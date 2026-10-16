@@ -282,6 +282,14 @@ async function processMarket(env: Env, m: EdekaMarket, maxExtract = 1): Promise<
         log.push(`${p.key}: letzter Versuch fehlgeschlagen, warte`);
       } else {
         extracted++;
+        // Harte Obergrenze: höchstens 4 KI-Einlesungen pro Woche, egal was passiert
+        const capKey = `extract:count:${isoWeek(new Date())}`;
+        const done = Number((await env.CACHE.get(capKey)) ?? 0);
+        if (done >= 4) {
+          log.push(`${p.key}: Wochenlimit für das Einlesen erreicht (${done})`);
+          break;
+        }
+        await env.CACHE.put(capKey, String(done + 1), { expirationTtl: 14 * 86400 });
         try {
           const t0 = Date.now();
           if (await overBudget(env)) {

@@ -88,7 +88,7 @@ export function loadLastRecipes(): RecipesResponse | null {
   return readRaw<RecipesResponse>('lastRecipes');
 }
 
-const OFFER_MAX_AGE = 3 * 3600_000;
+const OFFER_MAX_AGE = 1 * 3600_000;
 
 /** Fehler, wenn die Cloudflare-Anmeldung abgelaufen ist */
 export class LoginError extends Error {
@@ -117,7 +117,8 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export async function fetchOffers(plz: string, markets: number[] = [], force = false): Promise<OffersResponse> {
-  const key = `offers:${plz}:${markets.join(',')}`;
+  // Mit Versionskennung, damit nach einem Update frisch geladen wird
+  const key = `offers:${__BUILD__.sha}:${plz}:${markets.join(',')}`;
   if (!force) {
     const cached = readRaw<OffersResponse>(key);
     if (cached && Date.now() - Date.parse(cached.fetchedAt) < OFFER_MAX_AGE) return cached;
