@@ -1013,6 +1013,226 @@ h3 {
   margin: 0;
 }
 
+/* Korb */
+.cart {
+  margin: 4px 12px 14px;
+  padding: 14px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  border: 1.5px dashed var(--basil);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.cart-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.cart-head h2 {
+  font-family: var(--display);
+  font-size: 1.45rem;
+}
+.cart-empty {
+  margin: 0;
+  font-size: 0.9rem;
+}
+.cart-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cart-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cart-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cart-name {
+  font-weight: 700;
+}
+.cart-bar {
+  position: fixed;
+  left: 8px;
+  right: 8px;
+  bottom: calc(66px + env(safe-area-inset-bottom));
+  z-index: 11;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 624px;
+  margin: 0 auto;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--ink);
+  color: var(--bg);
+  text-align: left;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+.cart-bar-count {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--tag);
+  color: var(--tag-ink);
+  font-weight: 700;
+}
+.cart-bar-names {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 0.9rem;
+}
+.cart-bar-go {
+  flex: none;
+  font-weight: 700;
+  color: var(--tag);
+}
+.app:has(.cart-bar) {
+  padding-bottom: calc(130px + env(safe-area-inset-bottom));
+}
+.cook-btn.on {
+  background: var(--basil);
+  color: #fff;
+}
+@media (prefers-color-scheme: dark) {
+  .cook-btn.on {
+    color: #10210f;
+  }
+}
+
+/* Rezeptkarten */
+.recipe-item {
+  display: flex;
+  flex-direction: column;
+}
+.recipe-item .recipe-card {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.list-toggle {
+  padding: 9px 14px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--basil);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-top: 0;
+  border-radius: 0 0 var(--r-md) var(--r-md);
+  text-align: left;
+}
+.list-toggle.on {
+  background: var(--basil-soft);
+}
+.list-toggle.wide {
+  width: 100%;
+  border: 1.5px solid var(--basil);
+  border-radius: var(--r-sm);
+  text-align: center;
+  padding: 12px;
+}
+.detail-actions {
+  margin-bottom: 12px;
+}
+.recipe-uses {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.recipe-expiry {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.recipe-expiry.abgelaufen {
+  color: var(--tomato);
+}
+.recipe-expiry.bald,
+.recipe-expiry.spaeter {
+  color: var(--muted);
+}
+.bang {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--tomato);
+  color: #fff;
+  font-size: 0.8rem;
+  vertical-align: 2px;
+}
+.warn {
+  margin: 0 0 10px;
+  font-weight: 600;
+  color: var(--tomato);
+}
+
+/* Einkaufsliste */
+.list-recipes {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0;
+}
+.list-recipes li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.list-recipes .link {
+  text-align: left;
+}
+.shop-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.store-line {
+  margin: 0 0 4px;
+}
+.chosen {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Navigation: Zähler */
+.tab {
+  position: relative;
+}
+.tab-badge {
+  position: absolute;
+  top: 4px;
+  left: calc(50% + 6px);
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--tag);
+  color: var(--tag-ink);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 18px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;

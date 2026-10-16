@@ -16,7 +16,8 @@ interface Props {
   onReload: () => void;
   fetchedAt?: string;
   notes: string[];
-  onCook: (o: Offer) => void;
+  onToggleCart: (o: Offer) => void;
+  inCart: Set<number>;
   onOpenLeaflet: (chain: string, leaflets: Leaflet[]) => void;
   hasPlz: boolean;
   goToMarkets: () => void;
@@ -118,7 +119,7 @@ export function OffersView(p: Props) {
 
           <ul className="offer-list">
             {list.map((o) => (
-              <OfferRow key={o.id} o={o} onCook={p.onCook} />
+              <OfferRow key={o.id} o={o} onToggleCart={p.onToggleCart} inCart={p.inCart.has(o.id)} />
             ))}
           </ul>
 

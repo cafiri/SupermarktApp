@@ -3,8 +3,20 @@ import type { Recipe, RecipeIngredient } from '../../shared/types';
 import { DIET_SHORT, euro, shortChain } from '../format';
 import { PriceTag } from './PriceTag';
 import { OfferThumb } from './OfferRow';
+import { expiry, listAsText, mergeRecipes, shareText } from '../shopping';
 
-export function RecipeDetail({ recipe: r, onBack }: { recipe: Recipe; onBack: () => void }) {
+export function RecipeDetail({
+  recipe: r,
+  onBack,
+  onList,
+  onListNow,
+}: {
+  recipe: Recipe;
+  onBack: () => void;
+  onList: () => void;
+  onListNow: boolean;
+}) {
+  const ex = expiry(r);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const toggle = (k: string) =>
     setChecked((s) => {
@@ -16,34 +28,8 @@ export function RecipeDetail({ recipe: r, onBack }: { recipe: Recipe; onBack: ()
 
   const [shared, setShared] = useState<string | null>(null);
 
-  // Einkaufsliste als Text, z. B. für WhatsApp, Notizen oder Google Keep
   async function shareList() {
-    const lines: string[] = [];
-    for (const [chain, items] of byChain) {
-      lines.push(`${shortChain(chain)}:`);
-      items.forEach((i) => lines.push(`- ${i.offer!.packs > 1 ? `${i.offer!.packs}× ` : ''}${i.offer!.name}${i.offer!.pack ? ` (${i.offer!.pack})` : ''}`));
-    }
-    if (other.length) {
-      lines.push(byChain.size ? 'Außerdem:' : 'Einkaufen:');
-      other.forEach((i) => lines.push(`- ${i.name}${i.quantity ? ` (${i.quantity})` : ''}`));
-    }
-    const text = `Einkaufsliste: ${r.title}\n\n${lines.join('\n')}`;
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: `Einkaufsliste: ${r.title}`, text });
-        return;
-      }
-      await navigator.clipboard.writeText(text);
-      setShared('Einkaufsliste kopiert');
-    } catch (e) {
-      if (e instanceof DOMException && e.name === 'AbortError') return;
-      try {
-        await navigator.clipboard.writeText(text);
-        setShared('Einkaufsliste kopiert');
-      } catch {
-        setShared('Teilen klappt hier nicht');
-      }
-    }
+    setShared(await shareText(`Einkaufsliste: ${r.title}`, listAsText(`Einkaufsliste: ${r.title}`, mergeRecipes([r]), shortChain)));
   }
 
   // Einkaufsliste nach Markt gruppieren
@@ -78,13 +64,20 @@ export function RecipeDetail({ recipe: r, onBack }: { recipe: Recipe; onBack: ()
             <span>
               {r.minutes} Min · {DIET_SHORT[r.diet]}
             </span>
+            {ex.level && <span className={`recipe-expiry ${ex.level}`}>{ex.level === 'abgelaufen' ? `! ${ex.text}` : ex.text}</span>}
           </div>
         </div>
       </section>
 
+      <div className="pad detail-actions">
+        <button className={`list-toggle wide ${onListNow ? 'on' : ''}`} onClick={onList} aria-pressed={onListNow}>
+          {onListNow ? '✓ Auf der Einkaufsliste' : '+ Auf die Einkaufsliste'}
+        </button>
+      </div>
+
       <section className="card">
         <div className="card-head">
-          <h2>Einkaufsliste</h2>
+          <h2>Zutaten</h2>
           <button className="secondary small-btn" onClick={shareList}>
             Teilen
           </button>

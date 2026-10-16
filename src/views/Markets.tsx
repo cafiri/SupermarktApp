@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { ChainInfo } from '../../shared/types';
+import type { ChainInfo, StoreInfo } from '../../shared/types';
 import { api, fetchOffers, type Settings, type Trip } from '../store';
 
 interface Health {
@@ -36,6 +36,7 @@ interface Props {
   trip: Trip | null;
   setTrip: (t: Trip | null) => void;
   onDone: () => void;
+  stores: StoreInfo[];
 }
 
 export function MarketsView(p: Props) {
@@ -47,6 +48,7 @@ export function MarketsView(p: Props) {
         initialPlz={p.settings.plz}
         selected={p.settings.chains}
         selectedMarkets={p.settings.markets ?? []}
+        stores={p.stores}
         saveLabel="Märkte speichern"
         onSave={(plz, chains, markets) => {
           p.updateSettings({ plz, chains, markets });
@@ -88,6 +90,7 @@ function ChainPicker(props: {
   initialPlz: string;
   selected: string[];
   selectedMarkets: number[];
+  stores?: StoreInfo[];
   saveLabel: string;
   onSave: (plz: string, chains: string[], markets: number[]) => void;
   extra?: React.ReactNode;
@@ -120,6 +123,12 @@ function ChainPicker(props: {
     }
   }
 
+  // Nächste Filiale bei Ketten (nur für die Heimat-PLZ bekannt)
+  const store = (chain: string) => {
+    const st = props.stores?.find((x) => x.chain === chain);
+    return st?.address ? `nächste: ${st.address}` : undefined;
+  };
+
   const toggle = (c: ChainInfo) => {
     const on = picked.includes(c.name);
     setPicked((s) => (on ? s.filter((x) => x !== c.name) : [...s, c.name]));
@@ -137,7 +146,7 @@ function ChainPicker(props: {
           <input type="checkbox" checked={on} onChange={() => toggle(c)} />
           <span className="chain-text">
             <span className="chain-name">{shortChain(c.name)}</span>
-            {c.address && <span className="muted small">{c.address}</span>}
+            {(c.address ?? store(c.name)) && <span className="muted small">{c.address ?? store(c.name)}</span>}
           </span>
           {c.kind !== 'markt' && <span className="muted">{c.count} Angebote</span>}
         </label>
@@ -197,9 +206,17 @@ function ChainPicker(props: {
         </>
       )}
       {!chains && props.selected.length > 0 && (
-        <p className="current">
-          Gewählt: {props.selected.map(shortChain).join(', ')} · PLZ {props.initialPlz}
-        </p>
+        <>
+          <p className="current">Gewählt · PLZ {props.initialPlz}</p>
+          <ul className="chosen">
+            {props.selected.map((c) => (
+              <li key={c}>
+                <strong>{shortChain(c)}</strong>
+                {store(c) && <span className="muted small"> {store(c)}</span>}
+              </li>
+            ))}
+          </ul>
+        </>
       )}
       {props.extra}
     </section>

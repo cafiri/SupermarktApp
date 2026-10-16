@@ -114,7 +114,12 @@ export interface RecipeRequest {
   persons: number;
   days: number;
   maxMinutes: number | null;
+  /** @deprecated durch cart ersetzt */
   focusOfferId?: number | null;
+  /** Angebots-IDs im Einkaufskorb */
+  cart?: number[];
+  /** eins = alles in ein Gericht, verteilen = auf mehrere Rezepte verteilen */
+  cartMode?: 'eins' | 'verteilen';
   wishes?: string;
 }
 
@@ -133,6 +138,8 @@ export interface RecipeIngredient {
     packs: number;
     image?: string;
     page?: number;
+    validFrom?: string;
+    validTo?: string;
   };
   estimatedPrice?: number;
   /** Einkaufskosten dieser Zutat (Angebot: Packungen × Preis, sonst Schätzung) */
@@ -161,10 +168,29 @@ export interface Recipe {
   usedCost: number;
   /** usedCost / Portionen */
   perPortion: number;
+  /** Angebots-IDs aus dem Korb, die das Rezept verwendet */
+  usesCart?: number[];
+  /** Frühestes Ende der verwendeten Angebote */
+  validTo?: string;
 }
 
 export interface RecipesResponse {
   recipes: Recipe[];
   model: string;
   offerCount: number;
+  createdAt?: string;
+  /** Korb-Angebote, die in keinem Rezept vorkommen */
+  unusedCart?: number[];
+}
+
+/** Nächste Filiale einer Kette */
+export interface StoreInfo {
+  chain: string;
+  name: string;
+  address: string;
+  distanceKm: number;
+}
+
+export interface StoresResponse {
+  stores: StoreInfo[];
 }

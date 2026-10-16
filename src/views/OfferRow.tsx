@@ -16,7 +16,17 @@ export function OfferThumb({ src, size = 56 }: { src?: string; size?: number }) 
   );
 }
 
-export function OfferRow({ o, onCook, showChain = true }: { o: Offer; onCook?: (o: Offer) => void; showChain?: boolean }) {
+export function OfferRow({
+  o,
+  onToggleCart,
+  inCart = false,
+  showChain = true,
+}: {
+  o: Offer;
+  onToggleCart?: (o: Offer) => void;
+  inCart?: boolean;
+  showChain?: boolean;
+}) {
   return (
     <li className="offer">
       <OfferThumb src={o.image} />
@@ -34,9 +44,9 @@ export function OfferRow({ o, onCook, showChain = true }: { o: Offer; onCook?: (
             {euro(o.refPrice)}/{o.refUnit}
           </div>
         )}
-        {o.cooking && onCook && (
-          <button className="cook-btn" onClick={() => onCook(o)}>
-            Rezepte damit
+        {o.cooking && onToggleCart && (
+          <button className={`cook-btn ${inCart ? 'on' : ''}`} onClick={() => onToggleCart(o)} aria-pressed={inCart}>
+            {inCart ? '✓ Im Korb' : '+ Korb'}
           </button>
         )}
       </div>

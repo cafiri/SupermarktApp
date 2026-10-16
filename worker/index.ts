@@ -15,6 +15,7 @@ import {
   type Prospekt,
 } from './edeka';
 import { addCost, costUsd, monthCost, type Tracker } from './costs';
+import { nearestStores } from './stores';
 import type { ChainInfo, Leaflet, LeafletsResponse, Offer, OffersResponse, RecipeRequest } from '../shared/types';
 
 export interface Env {
@@ -296,6 +297,12 @@ export default {
       if (url.pathname === '/api/img') {
         const u = url.searchParams.get('u');
         return u ? proxyImage(u) : error('Bild fehlt', 400);
+      }
+
+      if (url.pathname === '/api/stores') {
+        const plz = url.searchParams.get('plz');
+        if (!validPlz(plz)) return error('Bitte eine 5-stellige PLZ angeben.', 400);
+        return json({ stores: await cached(env, `stores:${plz}`, 7 * 24 * HOUR, () => nearestStores(plz)) });
       }
 
       if (url.pathname === '/api/leaflets') {

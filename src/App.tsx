@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { Leaflet, Offer, Recipe, RecipesResponse } from '../shared/types';
-import { loadLastRecipes, useOffers, useSettings, useTrip, write } from './store';
+import type { Leaflet, Recipe, RecipeRequest, RecipesResponse } from '../shared/types';
+import { api, loadLastRecipes, LoginError, useCart, useOffers, useSettings, useShoppingList, useStores, useTrip, write } from './store';
 import { shortChain } from './format';
-import { CookView } from './views/Cook';
+import { CookView, type GenState } from './views/Cook';
+import { ShoppingView } from './views/Shopping';
 import { OffersView } from './views/Offers';
 import { MarketsView } from './views/Markets';
 import { RecipeDetail } from './views/RecipeDetail';
 import { LeafletView } from './views/LeafletView';
 
-type Tab = 'kochen' | 'angebote' | 'maerkte';
+type Tab = 'kochen' | 'angebote' | 'einkauf' | 'maerkte';
 
 export default function App() {
   const [settings, updateSettings] = useSettings();
@@ -24,7 +25,11 @@ export default function App() {
   const activeChains = baseChains.filter((c) => !skipToday.includes(c));
 
   const offers = useOffers(plz || null, markets);
-  const [focus, setFocus] = useState<Offer | null>(null);
+  const cart = useCart();
+  const shopping = useShoppingList();
+  const stores = useStores(plz || null);
+  const [wishes, setWishes] = useState('');
+  const [gen, setGen] = useState<GenState>({ loading: false, error: null, loginExpired: false, startedAt: 0 });
   const [results, setResults] = useState<RecipesResponse | null>(() => loadLastRecipes());
   const [detail, setDetail] = useState<Recipe | null>(null);
   const [leaflet, setLeaflet] = useState<{ chain: string; leaflets: Leaflet[] } | null>(null);
@@ -50,17 +55,37 @@ export default function App() {
     window.scrollTo(0, 0);
   }, []);
 
-  const onResults = useCallback((r: RecipesResponse) => {
-    setResults(r);
-    write('lastRecipes', r);
-  }, []);
+  const ready = !!plz && activeChains.length > 0;
 
-  const cookWith = useCallback((o: Offer) => {
-    if (leaflet) history.back();
-    setFocus(o);
-    setTab('kochen');
-    window.scrollTo(0, 0);
-  }, []);
+  // Rezepte werden NUR hier gebaut – ausgelöst durch den Knopf im Kochen-Tab
+  const generate = useCallback(async () => {
+    if (!ready || gen.loading) return;
+    setGen({ loading: true, error: null, loginExpired: false, startedAt: Date.now() });
+    try {
+      const body: RecipeRequest = {
+        plz,
+        chains: activeChains,
+        markets,
+        diet: settings.diet,
+        persons: settings.persons,
+        days: settings.days,
+        maxMinutes: settings.maxMinutes,
+        cart: cart.cart.map((o) => o.id),
+        cartMode: settings.cartMode,
+        wishes,
+      };
+      const data = await api<RecipesResponse>('/api/recipes', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      setResults(data);
+      write('lastRecipes', data);
+      setGen((g) => ({ ...g, loading: false }));
+    } catch (e) {
+      setGen((g) => ({ ...g, loading: false, error: e instanceof Error ? e.message : String(e), loginExpired: e instanceof LoginError }));
+    }
+  }, [ready, gen.loading, plz, activeChains, markets, settings, cart.cart, wishes]);
 
   const chainCounts = useMemo(() => {
     const m = new Map<string, number>();
@@ -68,7 +93,10 @@ export default function App() {
     return m;
   }, [offers.data]);
 
-  if (detail) return <RecipeDetail recipe={detail} onBack={closeDetail} />;
+  if (detail)
+    return (
+      <RecipeDetail recipe={detail} onBack={closeDetail} onList={() => shopping.toggleRecipe(detail)} onListNow={shopping.has(detail)} />
+    );
   if (leaflet)
     return (
       <LeafletView
@@ -76,7 +104,8 @@ export default function App() {
         leaflets={leaflet.leaflets}
         offers={(offers.data?.offers ?? []).filter((o) => o.chain === leaflet.chain)}
         onBack={closeDetail}
-        onCook={cookWith}
+        onToggleCart={cart.toggle}
+        inCart={cart.ids}
       />
     );
 
@@ -121,16 +150,22 @@ export default function App() {
           <CookView
             settings={settings}
             updateSettings={updateSettings}
-            plz={plz}
-            chains={activeChains}
-            markets={markets}
-            focus={focus}
-            clearFocus={() => setFocus(null)}
+            cart={cart.cart}
+            removeFromCart={cart.remove}
+            clearCart={cart.clear}
+            cartRemoved={cart.removed}
+            dismissCartRemoved={cart.dismissRemoved}
+            wishes={wishes}
+            setWishes={setWishes}
+            gen={gen}
+            onGenerate={generate}
             results={results}
-            onResults={onResults}
             onOpen={openDetail}
-            ready={!!plz && activeChains.length > 0}
+            onList={shopping.toggleRecipe}
+            isOnList={shopping.has}
+            ready={ready}
             goToMarkets={() => setTab('maerkte')}
+            goToOffers={() => setTab('angebote')}
           />
         )}
         {tab === 'angebote' && (
@@ -145,9 +180,22 @@ export default function App() {
             plz={plz}
             markets={markets}
             onOpenLeaflet={openLeaflet}
-            onCook={cookWith}
+            onToggleCart={cart.toggle}
+            inCart={cart.ids}
             hasPlz={!!plz}
             goToMarkets={() => setTab('maerkte')}
+          />
+        )}
+        {tab === 'einkauf' && (
+          <ShoppingView
+            recipes={shopping.recipes}
+            checked={shopping.checked}
+            toggleItem={shopping.toggleItem}
+            removeRecipe={shopping.toggleRecipe}
+            clear={shopping.clear}
+            onOpen={openDetail}
+            stores={stores}
+            goToCook={() => setTab('kochen')}
           />
         )}
         {tab === 'maerkte' && (
@@ -160,20 +208,37 @@ export default function App() {
               setSkipToday([]);
             }}
             onDone={() => setTab('kochen')}
+            stores={stores}
           />
         )}
       </main>
 
+      {cart.cart.length > 0 && tab !== 'kochen' && (
+        <button className="cart-bar" onClick={() => setTab('kochen')}>
+          <span className="cart-bar-count">{cart.cart.length}</span>
+          <span className="cart-bar-names">{cart.cart.map((o) => o.name).join(', ')}</span>
+          <span className="cart-bar-go">Zum Korb</span>
+        </button>
+      )}
+
       <nav className="tabbar" aria-label="Bereiche">
         <TabButton id="kochen" tab={tab} setTab={setTab} label="Kochen" icon={<PotIcon />} />
         <TabButton id="angebote" tab={tab} setTab={setTab} label="Angebote" icon={<TagIcon />} />
+        <TabButton
+          id="einkauf"
+          tab={tab}
+          setTab={setTab}
+          label="Einkauf"
+          icon={<ListIcon />}
+          badge={shopping.recipes.length || undefined}
+        />
         <TabButton id="maerkte" tab={tab} setTab={setTab} label="Märkte" icon={<PinIcon />} />
       </nav>
     </div>
   );
 }
 
-function TabButton(props: { id: Tab; tab: Tab; setTab: (t: Tab) => void; label: string; icon: JSX.Element }) {
+function TabButton(props: { id: Tab; tab: Tab; setTab: (t: Tab) => void; label: string; icon: JSX.Element; badge?: number }) {
   const active = props.id === props.tab;
   return (
     <button
@@ -185,6 +250,7 @@ function TabButton(props: { id: Tab; tab: Tab; setTab: (t: Tab) => void; label: 
       }}
     >
       {props.icon}
+      {props.badge ? <span className="tab-badge">{props.badge}</span> : null}
       <span>{props.label}</span>
     </button>
   );
@@ -199,6 +265,11 @@ const TagIcon = () => (
   <svg viewBox="0 0 24 24" aria-hidden="true">
     <path d="M3 12V4h8l10 10-8 8z" />
     <circle cx="7.5" cy="8.5" r="1.5" />
+  </svg>
+);
+const ListIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M9 6h11 M9 12h11 M9 18h11 M4 6l1 1 2-2 M4 12l1 1 2-2 M4 18l1 1 2-2" />
   </svg>
 );
 const PinIcon = () => (

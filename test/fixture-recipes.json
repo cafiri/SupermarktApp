@@ -1,7 +1,7 @@
 {
  "recipes": [
   {
-   "id": "mvascbqz-1",
+   "id": "mvav97pp-1",
    "title": "Pasta mit Brokkoli-Frischkäse-Sauce",
    "description": "Schnelle cremige Pasta, fertig in 20 Minuten.",
    "minutes": 20,
@@ -19,7 +19,10 @@
       "brand": "Delverde",
       "pack": "500 g",
       "price": 0.99,
-      "packs": 1
+      "packs": 1,
+      "image": "https://mg2de.b-cdn.net/api/v1/offers/1012/images/default/0/small.jpg",
+      "validFrom": "2026-10-11T22:00:00Z",
+      "validTo": "2099-10-17T21:59:00Z"
      },
      "cost": 0.99,
      "usedCost": 0.99
@@ -34,7 +37,10 @@
       "name": "Broccoli",
       "pack": "500 g",
       "price": 0.99,
-      "packs": 1
+      "packs": 1,
+      "image": "https://mg2de.b-cdn.net/api/v1/offers/1008/images/default/0/small.jpg",
+      "validFrom": "2026-10-11T22:00:00Z",
+      "validTo": "2099-10-17T21:59:00Z"
      },
      "cost": 0.99,
      "usedCost": 0.99
@@ -50,7 +56,10 @@
       "brand": "Arla",
       "pack": "200 g",
       "price": 0.99,
-      "packs": 1
+      "packs": 1,
+      "image": "https://mg2de.b-cdn.net/api/v1/offers/1015/images/default/0/small.jpg",
+      "validFrom": "2026-10-11T22:00:00Z",
+      "validTo": "2099-10-17T21:59:00Z"
      },
      "cost": 0.99,
      "usedCost": 0.99
@@ -65,7 +74,10 @@
       "name": "Zitronen",
       "pack": "500 g",
       "price": 0.99,
-      "packs": 1
+      "packs": 1,
+      "image": "https://mg2de.b-cdn.net/api/v1/offers/1018/images/default/0/small.jpg",
+      "validFrom": "2026-10-11T22:00:00Z",
+      "validTo": "2099-10-17T21:59:00Z"
      },
      "cost": 0.99,
      "usedCost": 0.2
@@ -94,10 +106,12 @@
    "estimatedCost": 0,
    "totalCost": 3.96,
    "usedCost": 3.17,
-   "perPortion": 1.59
+   "perPortion": 1.59,
+   "usesCart": [],
+   "validTo": "2099-10-17T21:59:00.000Z"
   },
   {
-   "id": "mvascbqz-2",
+   "id": "mvav97pp-2",
    "title": "Ofenlachs mit Kichererbsen",
    "description": "Lachs auf würzigen Kichererbsen und Tomaten aus dem Ofen.",
    "minutes": 30,
@@ -115,7 +129,10 @@
       "brand": "ja!",
       "pack": "250 g",
       "price": 3.79,
-      "packs": 1
+      "packs": 1,
+      "image": "https://mg2de.b-cdn.net/api/v1/offers/1005/images/default/0/small.jpg",
+      "validFrom": "2026-10-11T22:00:00Z",
+      "validTo": "2099-10-17T21:59:00Z"
      },
      "cost": 3.79,
      "usedCost": 3.79
@@ -131,7 +148,10 @@
       "brand": "Krini",
       "pack": "240 g",
       "price": 0.99,
-      "packs": 1
+      "packs": 1,
+      "image": "https://mg2de.b-cdn.net/api/v1/offers/1013/images/default/0/small.jpg",
+      "validFrom": "2026-10-11T22:00:00Z",
+      "validTo": "2099-10-17T21:59:00Z"
      },
      "cost": 0.99,
      "usedCost": 0.99
@@ -146,7 +166,10 @@
       "name": "Romatomaten",
       "pack": "500 g",
       "price": 1.49,
-      "packs": 1
+      "packs": 1,
+      "image": "https://mg2de.b-cdn.net/api/v1/offers/1009/images/default/0/small.jpg",
+      "validFrom": "2026-10-11T22:00:00Z",
+      "validTo": "2099-10-17T21:59:00Z"
      },
      "cost": 1.49,
      "usedCost": 0.75
@@ -161,7 +184,10 @@
       "name": "Zitronen",
       "pack": "500 g",
       "price": 0.99,
-      "packs": 1
+      "packs": 1,
+      "image": "https://mg2de.b-cdn.net/api/v1/offers/1018/images/default/0/small.jpg",
+      "validFrom": "2026-10-11T22:00:00Z",
+      "validTo": "2099-10-17T21:59:00Z"
      },
      "cost": 0.99,
      "usedCost": 0.2
@@ -189,10 +215,12 @@
    "estimatedCost": 0,
    "totalCost": 7.26,
    "usedCost": 5.73,
-   "perPortion": 2.87
+   "perPortion": 2.87,
+   "usesCart": [],
+   "validTo": "2099-10-17T21:59:00.000Z"
   },
   {
-   "id": "mvascbqz-0",
+   "id": "mvav97pp-0",
    "title": "Hack-Kürbis-Pfanne mit Feta",
    "description": "Herbstliche Pfanne mit Butternut, Hackfleisch und Tomaten – lässt sich gut vorkochen.",
    "minutes": 35,
@@ -210,7 +238,10 @@
       "brand": "Gut Ponholz",
       "pack": "400 g",
       "price": 2.99,
-      "packs": 1
+      "packs": 1,
+      "image": "https://mg2de.b-cdn.net/api/v1/offers/1001/images/default/0/small.jpg",
+      "validFrom": "2026-10-11T22:00:00Z",
+      "validTo": "2099-10-17T21:59:00Z"
      },
      "cost": 2.99,
      "usedCost": 2.99
@@ -225,7 +256,10 @@
       "name": "Bio Speisekürbis Butternut",
       "pack": "1 kg",
       "price": 1.29,
-      "packs": 1
+      "packs": 1,
+      "image": "https://mg2de.b-cdn.net/api/v1/offers/1007/images/default/0/small.jpg",
+      "validFrom": "2026-10-11T22:00:00Z",
+      "validTo": "2099-10-17T21:59:00Z"
      },
      "cost": 1.29,
      "usedCost": 1.29
@@ -240,7 +274,10 @@
       "name": "Romatomaten",
       "pack": "500 g",
       "price": 1.49,
-      "packs": 1
+      "packs": 1,
+      "image": "https://mg2de.b-cdn.net/api/v1/offers/1009/images/default/0/small.jpg",
+      "validFrom": "2026-10-11T22:00:00Z",
+      "validTo": "2099-10-17T21:59:00Z"
      },
      "cost": 1.49,
      "usedCost": 1.49
@@ -256,7 +293,10 @@
       "brand": "Rewe Bio",
       "pack": "750 g",
       "price": 1.11,
-      "packs": 1
+      "packs": 1,
+      "image": "https://mg2de.b-cdn.net/api/v1/offers/1010/images/default/0/small.jpg",
+      "validFrom": "2026-10-11T22:00:00Z",
+      "validTo": "2099-10-17T21:59:00Z"
      },
      "cost": 1.11,
      "usedCost": 0.33
@@ -301,7 +341,9 @@
    "estimatedCost": 1.29,
    "totalCost": 8.17,
    "usedCost": 7.07,
-   "perPortion": 3.54
+   "perPortion": 3.54,
+   "usesCart": [],
+   "validTo": "2099-10-17T21:59:00.000Z"
   }
  ],
  "model": "mock",

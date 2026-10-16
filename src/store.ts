@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { DietChoice, OffersResponse, RecipesResponse } from '../shared/types';
+import type { DietChoice, Offer, OffersResponse, Recipe, RecipesResponse, StoreInfo, StoresResponse } from '../shared/types';
 
 export interface Settings {
   plz: string;
@@ -11,6 +11,7 @@ export interface Settings {
   days: number;
   diet: DietChoice;
   maxMinutes: number | null;
+  cartMode: 'eins' | 'verteilen';
 }
 
 /** Vorübergehende Auswahl unterwegs */
@@ -28,6 +29,7 @@ export const DEFAULT_SETTINGS: Settings = {
   days: 1,
   diet: 'alles',
   maxMinutes: null,
+  cartMode: 'verteilen',
 };
 
 function read<T>(key: string, fallback: T): T {
@@ -153,4 +155,77 @@ export function useOffers(plz: string | null, markets: number[] = []) {
   }, [load]);
 
   return { data, loading, error, reload: () => load(true) };
+}
+
+// ---------- Einkaufskorb ----------
+
+const notExpired = (o: { validTo: string }) => Date.parse(o.validTo) >= Date.now();
+
+/** Angebote, aus denen Rezepte gebaut werden sollen. Bleibt gespeichert, bis er geleert wird. */
+export function useCart() {
+  const [cart, setCart] = useState<Offer[]>(() => readRaw<Offer[]>('cart') ?? []);
+  const [removed, setRemoved] = useState<string[]>([]);
+  // Abgelaufene Angebote automatisch entfernen
+  useEffect(() => {
+    const gone = cart.filter((o) => !notExpired(o));
+    if (gone.length) {
+      setRemoved(gone.map((o) => o.name));
+      setCart((c) => c.filter(notExpired));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => write('cart', cart), [cart]);
+  const toggle = useCallback(
+    (o: Offer) => setCart((c) => (c.some((x) => x.id === o.id) ? c.filter((x) => x.id !== o.id) : [...c, o].slice(-12))),
+    [],
+  );
+  const remove = useCallback((id: number) => setCart((c) => c.filter((x) => x.id !== id)), []);
+  const clear = useCallback(() => setCart([]), []);
+  return { cart, ids: new Set(cart.map((o) => o.id)), toggle, remove, clear, removed, dismissRemoved: () => setRemoved([]) };
+}
+
+// ---------- Gemeinsame Einkaufsliste ----------
+
+export interface ShoppingState {
+  recipes: Recipe[];
+  checked: string[];
+}
+
+export function useShoppingList() {
+  const [state, setState] = useState<ShoppingState>(() => readRaw<ShoppingState>('shopping') ?? { recipes: [], checked: [] });
+  useEffect(() => write('shopping', state), [state]);
+  const has = (r: Recipe) => state.recipes.some((x) => x.id === r.id);
+  const toggleRecipe = useCallback(
+    (r: Recipe) =>
+      setState((s) => (s.recipes.some((x) => x.id === r.id) ? { ...s, recipes: s.recipes.filter((x) => x.id !== r.id) } : { ...s, recipes: [...s.recipes, r] })),
+    [],
+  );
+  const toggleItem = useCallback(
+    (key: string) => setState((s) => ({ ...s, checked: s.checked.includes(key) ? s.checked.filter((k) => k !== key) : [...s.checked, key] })),
+    [],
+  );
+  const clear = useCallback(() => setState({ recipes: [], checked: [] }), []);
+  return { ...state, has, toggleRecipe, toggleItem, clear };
+}
+
+// ---------- Nächste Filialen ----------
+
+export function useStores(plz: string | null) {
+  const [stores, setStores] = useState<StoreInfo[]>([]);
+  useEffect(() => {
+    if (!plz) return;
+    const key = `stores:${plz}`;
+    const cached = readRaw<{ at: number; stores: StoreInfo[] }>(key);
+    if (cached && Date.now() - cached.at < 7 * 86400_000) {
+      setStores(cached.stores);
+      return;
+    }
+    api<StoresResponse>(`/api/stores?plz=${plz}`)
+      .then((d) => {
+        setStores(d.stores);
+        write(key, { at: Date.now(), stores: d.stores });
+      })
+      .catch(() => setStores([]));
+  }, [plz]);
+  return stores;
 }

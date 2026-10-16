@@ -52,14 +52,20 @@ export function selectOffers(req: RecipeRequest, offers: Offer[], now = Date.now
   );
   list.sort((a, b) => (GROUP_PRIORITY[a.group] ?? 9) - (GROUP_PRIORITY[b.group] ?? 9));
   const picked = list.slice(0, MAX_OFFERS);
-  if (req.focusOfferId) {
-    const f = offers.find((o) => o.id === req.focusOfferId);
+  // Korb-Angebote immer mitschicken, auch wenn sie sonst herausgefiltert würden
+  for (const id of cartIds(req).reverse()) {
+    const f = offers.find((o) => o.id === id);
     if (f && !picked.includes(f)) picked.unshift(f);
   }
   return picked;
 }
 
 const eur = (n: number) => n.toFixed(2);
+
+export function cartIds(req: RecipeRequest): number[] {
+  const ids = [...(req.cart ?? []), ...(req.focusOfferId ? [req.focusOfferId] : [])];
+  return [...new Set(ids)].slice(0, 12);
+}
 
 function offerLine(o: Offer): string {
   const parts = [
@@ -141,7 +147,7 @@ const TOOL = {
   },
 } as const;
 
-function buildPrompt(req: RecipeRequest, offers: Offer[], focus?: Offer): { system: string; user: string } {
+function buildPrompt(req: RecipeRequest, offers: Offer[], cart: Offer[]): { system: string; user: string } {
   const servings = req.persons * req.days;
   const system = [
     'Du bist ein kreativer, praktischer Hobbykoch-Assistent für eine Spar-Rezepte-App in Deutschland.',
@@ -168,10 +174,22 @@ function buildPrompt(req: RecipeRequest, offers: Offer[], focus?: Offer): { syst
       : `Portionen: ${servings}.`,
   );
   if (req.maxMinutes) lines.push(`Maximale Gesamtzeit: ${req.maxMinutes} Minuten.`);
-  if (focus) {
-    lines.push(
-      `WICHTIG: Jedes Rezept muss auf diesem Angebot aufbauen: ID ${focus.id} – ${focus.name}${focus.brand ? ` (${focus.brand})` : ''}, ${focus.pack ?? ''}, ${eur(focus.price)} € bei ${focus.chain}.`,
-    );
+  if (cart.length) {
+    lines.push('');
+    lines.push('EINKAUFSKORB – diese Angebote hat der Nutzer ausgewählt (ID | Markt | Produkt | Packung | Preis):');
+    for (const o of cart) lines.push(`${o.id} | ${o.chain} | ${o.brand ? `${o.name} (${o.brand})` : o.name} | ${o.pack ?? '?'} | ${eur(o.price)} €`);
+    if (cart.length === 1 || req.cartMode !== 'verteilen') {
+      lines.push(
+        cart.length === 1
+          ? 'WICHTIG: Jedes der 5 Rezepte baut auf diesem Korb-Angebot als Hauptzutat auf.'
+          : 'WICHTIG: Jedes der 5 Rezepte verwendet ALLE Korb-Angebote zusammen (5 verschiedene Gerichte). Passt ein Angebot gar nicht dazu, darfst du es in einem Rezept weglassen und sagst das kurz in der description.',
+      );
+    } else {
+      lines.push(
+        'WICHTIG: Verteile den Korb auf die 5 Rezepte. Jedes Rezept baut auf mindestens einem Korb-Angebot als Hauptzutat auf, zusammen kommen ALLE Korb-Angebote mindestens einmal vor. Weitere Korb-Angebote dürfen als Beilage dazu.',
+      );
+    }
+    lines.push('Ergänze günstige, passende Angebote aus der Liste – bevorzugt aus denselben Märkten wie der Korb.');
   }
   if (req.wishes?.trim()) lines.push(`WICHTIG – Wunsch, der für jedes Rezept gilt: ${req.wishes.trim().slice(0, 300)}`);
   lines.push('');
@@ -214,7 +232,7 @@ function matchByName(name: string, offers: Offer[]): Offer | undefined {
   });
 }
 
-export function priceRecipe(raw: RawRecipe, byId: Map<number, Offer>, servings: number, idx: number): Recipe {
+export function priceRecipe(raw: RawRecipe, byId: Map<number, Offer>, servings: number, idx: number, cart: number[] = []): Recipe {
   const all = [...byId.values()];
   const ingredients: RecipeIngredient[] = raw.ingredients.map((i) => {
     let o = i.offerId != null ? byId.get(i.offerId) : undefined;
@@ -237,6 +255,8 @@ export function priceRecipe(raw: RawRecipe, byId: Map<number, Offer>, servings: 
           packs,
           image: o.image || undefined,
           page: o.page,
+          validFrom: o.validFrom,
+          validTo: o.validTo,
         },
         cost: r2(packs * o.price),
         usedCost: r2(packs * o.price * frac),
@@ -251,6 +271,8 @@ export function priceRecipe(raw: RawRecipe, byId: Map<number, Offer>, servings: 
   const totalCost = r2(offerCost + estimatedCost);
   const usedCost = r2(ingredients.reduce((s, i) => s + i.usedCost, 0));
   const chains = [...new Set(ingredients.flatMap((i) => (i.offer ? [i.offer.chain] : [])))];
+  const offerIds = ingredients.flatMap((i) => (i.offer ? [i.offer.id] : []));
+  const ends = ingredients.flatMap((i) => (i.offer?.validTo ? [Date.parse(i.offer.validTo)] : []));
   return {
     id: `${Date.now().toString(36)}-${idx}`,
     title: raw.title,
@@ -268,6 +290,8 @@ export function priceRecipe(raw: RawRecipe, byId: Map<number, Offer>, servings: 
     totalCost,
     usedCost,
     perPortion: r2(usedCost / Math.max(1, servings)),
+    usesCart: cart.filter((id) => offerIds.includes(id)),
+    validTo: ends.length ? new Date(Math.min(...ends)).toISOString() : undefined,
   };
 }
 
@@ -277,8 +301,9 @@ export async function generateRecipes(req: RecipeRequest, allOffers: Offer[], en
   const r: RecipeRequest = { ...req, persons, days };
   const offers = selectOffers(r, allOffers);
   if (!offers.length) throw new Error('Für diese Auswahl gibt es gerade keine passenden Angebote.');
-  const focus = r.focusOfferId ? allOffers.find((o) => o.id === r.focusOfferId) : undefined;
-  const { system, user } = buildPrompt(r, offers, focus);
+  const ids = cartIds(r);
+  const cart = ids.map((id) => allOffers.find((o) => o.id === id)).filter((o): o is Offer => !!o);
+  const { system, user } = buildPrompt(r, offers, cart);
   const model = env.MODEL || DEFAULT_MODEL;
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -314,6 +339,14 @@ export async function generateRecipes(req: RecipeRequest, allOffers: Offer[], en
 
   const byId = new Map(allOffers.map((o) => [o.id, o]));
   const servings = persons * days;
-  const recipes = raws.map((x, i) => priceRecipe(x, byId, servings, i)).sort((a, b) => a.perPortion - b.perPortion);
-  return { recipes, model, offerCount: offers.length };
+  const cartFound = cart.map((o) => o.id);
+  const recipes = raws.map((x, i) => priceRecipe(x, byId, servings, i, cartFound)).sort((a, b) => a.perPortion - b.perPortion);
+  const used = new Set(recipes.flatMap((x) => x.usesCart ?? []));
+  return {
+    recipes,
+    model,
+    offerCount: offers.length,
+    createdAt: new Date().toISOString(),
+    unusedCart: cartFound.filter((id) => !used.has(id)),
+  };
 }

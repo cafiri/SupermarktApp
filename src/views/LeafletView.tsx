@@ -8,7 +8,7 @@ const ORDER: Group[] = ['fleisch', 'fisch', 'gemuese', 'obst', 'milch', 'wurst',
 const fmtDay = (iso: string) => new Date(iso).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'numeric' });
 
 /** Ein Markt: Prospekt zum Durchblättern oder alle Angebote als Liste mit Bildern */
-export function LeafletView(props: { chain: string; leaflets: Leaflet[]; offers: Offer[]; onBack: () => void; onCook: (o: Offer) => void }) {
+export function LeafletView(props: { chain: string; leaflets: Leaflet[]; offers: Offer[]; onBack: () => void; onToggleCart: (o: Offer) => void; inCart: Set<number> }) {
   const [mode, setMode] = useState<'blaettern' | 'liste'>(props.leaflets.length ? 'blaettern' : 'liste');
   const [active, setActive] = useState(0);
   const [zoom, setZoom] = useState<string | null>(null);
@@ -82,7 +82,7 @@ export function LeafletView(props: { chain: string; leaflets: Leaflet[]; offers:
               <h2 className="section-title">{GROUP_LABELS[g]}</h2>
               <ul className="offer-list">
                 {list.map((o) => (
-                  <OfferRow key={o.id} o={o} onCook={props.onCook} showChain={false} />
+                  <OfferRow key={o.id} o={o} onToggleCart={props.onToggleCart} inCart={props.inCart.has(o.id)} showChain={false} />
                 ))}
               </ul>
             </section>

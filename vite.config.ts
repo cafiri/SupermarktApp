@@ -27,6 +27,12 @@ function mockApi(): Plugin {
           return send(JSON.parse(readFileSync('test/fixture-recipes.json', 'utf8')), 1500);
         }
         if (req.url.startsWith('/api/health')) return send({ ok: true, hasKey: false, model: 'mock', monthCostUsd: 0.42, budgetUsd: 8, recipesToday: 2, recipesPerDay: 15 });
+        if (req.url.startsWith('/api/stores')) {
+          return send({ stores: [
+            { chain: 'REWE', name: 'REWE', address: 'Gifhorner Straße 4, 38536 Meinersen', distanceKm: 1.2 },
+            { chain: 'Lidl', name: 'Lidl', address: 'Schapers Kamp 3, 31311 Uetze', distanceKm: 9.8 },
+          ] });
+        }
         if (req.url.startsWith('/api/leaflets')) {
           const page = (n: number) => `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="640" height="1086"><rect width="640" height="1086" fill="#fff"/><rect x="20" y="20" width="600" height="160" fill="#e30613"/><text x="40" y="120" font-size="72" fill="#fff" font-family="sans-serif">Seite ${n}</text></svg>`)}`;
           return send({ leaflets: [{ id: 'mg-1', chain: 'Lidl', validFrom: new Date().toISOString(), validTo: new Date(Date.now() + 3 * 864e5).toISOString(), pages: [1, 2, 3].map(page), pagesLarge: [1, 2, 3].map(page) }] });
