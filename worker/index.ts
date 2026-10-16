@@ -433,7 +433,17 @@ export default {
         const errs = Array.isArray(ps) ? await Promise.all(ps.map((p) => kvGet(env, errKey(p.key)))) : [];
         const watch = (await kvGet<Watched[]>(env, 'edeka:watch'))?.map((x) => `${x.name} (zuletzt ${new Date(x.lastSeen ?? 0).toISOString()})`);
         const first = idx?.prospekte[0] ? ((await kvGet<Offer[]>(env, pdfKey(idx.prospekte[0].key))) ?? []).slice(0, 15) : [];
-        return json({ market: m, watch, idx, prospekte: ps, errors: errs, sample: first.map((o) => `${o.name} | ${o.pack ?? ''} | ${o.price} | ${o.group} | ${o.diet} | S.${o.page ?? '?'}`) });
+        const week = await env.CACHE?.get(`extract:count:${isoWeek(new Date())}`);
+        return json({
+          market: m,
+          watch,
+          extractsThisWeek: Number(week ?? 0),
+          idx,
+          prospekte: ps,
+          errors: errs,
+          withCrop: first.filter((o) => o.crop).length,
+          sample: first.map((o) => `${o.name} | ${o.price} | S.${o.page ?? '?'} | crop ${o.crop ? `${o.crop.x},${o.crop.y},${o.crop.w},${o.crop.h}` : 'KEIN'}`),
+        });
       }
 
       // Prüft, welche Quellen von Cloudflare aus erreichbar sind
