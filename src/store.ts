@@ -249,10 +249,13 @@ export function useStores(plz: string | null) {
       setStores(cached.stores);
       return;
     }
+    // Erst über den Server, sonst direkt vom Handy aus (manche Kartenserver blocken Cloud-Anfragen)
     api<StoresResponse>(`/api/stores?plz=${plz}`)
-      .then((d) => {
-        setStores(d.stores);
-        write(key, { at: Date.now(), stores: d.stores });
+      .then((d) => d.stores)
+      .catch(() => import('../worker/stores').then((m) => m.nearestStores(plz)))
+      .then((list) => {
+        setStores(list);
+        if (list.length) write(key, { at: Date.now(), stores: list });
       })
       .catch(() => setStores([]));
   }, [plz]);

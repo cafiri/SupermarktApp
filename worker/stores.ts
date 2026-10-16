@@ -34,7 +34,7 @@ export async function nearestStores(plz: string, center?: { lat: number; lon: nu
   if (!c) return [];
   const { lat, lon } = c;
 
-  const q = `[out:json][timeout:25];nwr["shop"="supermarket"](around:20000,${lat},${lon});out center tags;`;
+  const q = `[out:json][timeout:15];nwr["shop"="supermarket"](around:12000,${lat},${lon});out center tags;`;
   // Mehrere öffentliche Overpass-Server – der Hauptserver blockt manchmal Cloud-Anfragen
   const servers = [
     'https://overpass-api.de/api/interpreter',
