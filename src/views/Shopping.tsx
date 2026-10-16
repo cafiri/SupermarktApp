@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Offer, Recipe, StoreInfo } from '../../shared/types';
 import { euro, shortChain } from '../format';
 import { listAsText, mergeRecipes, shareText } from '../shopping';
@@ -22,6 +22,11 @@ export function ShoppingView(p: Props) {
   const checked = new Set(p.checked);
   const [msg, setMsg] = useState<string | null>(null);
   const store = (chain: string) => p.stores.find((s) => s.chain === chain);
+  // Abhaken = gekauft: Ersparnis für den Monat mitzählen
+  const toggle = (key: string, saving?: number) => {
+    if (saving) addMonthSaving(checked.has(key) ? -saving : saving);
+    p.toggleItem(key);
+  };
 
   if (!p.recipes.length && !p.singles.length) {
     return (
@@ -85,6 +90,8 @@ export function ShoppingView(p: Props) {
           ))}
         </ul>
         <p className="muted small">Ungefähr {euro(list.total)} insgesamt</p>
+        {list.saving > 0 && <p className="saving">Du sparst mindestens {euro(list.saving)} gegenüber dem Normalpreis</p>}
+        <MonthSaving />
       </section>
 
       {list.chains.map((c) => {
@@ -102,7 +109,7 @@ export function ShoppingView(p: Props) {
             )}
             <ul className="shop-list">
               {c.items.map((i) => (
-                <Item key={i.key} i={i} done={checked.has(i.key)} onToggle={() => p.toggleItem(i.key)} />
+                <Item key={i.key} i={i} done={checked.has(i.key)} onToggle={() => toggle(i.key, i.saving)} />
               ))}
             </ul>
           </section>
@@ -152,6 +159,7 @@ function Item({ i, done, onToggle }: { i: ReturnType<typeof mergeRecipes>['other
           <span className="shop-name">{i.name}</span>
           <span className="shop-sub">
             {i.detail}
+            {i.saving ? ` · ${euro(i.saving)} gespart` : ''}
             {i.recipes.filter((r) => r !== 'Einzeln').length > 1 ? ` · für ${i.recipes.filter((r) => r !== 'Einzeln').length} Rezepte` : ''}
           </span>
         </span>
@@ -159,4 +167,32 @@ function Item({ i, done, onToggle }: { i: ReturnType<typeof mergeRecipes>['other
       </label>
     </li>
   );
+}
+
+const monthKey = () => `savings:${new Date().toISOString().slice(0, 7)}`;
+function addMonthSaving(n: number) {
+  try {
+    const v = Number(localStorage.getItem(monthKey()) ?? 0) + n;
+    localStorage.setItem(monthKey(), String(Math.max(0, Math.round(v * 100) / 100)));
+    window.dispatchEvent(new Event('savings'));
+  } catch {
+    /* egal */
+  }
+}
+function MonthSaving() {
+  const read = () => {
+    try {
+      return Number(localStorage.getItem(monthKey()) ?? 0);
+    } catch {
+      return 0;
+    }
+  };
+  const [v, setV] = useState(read);
+  useEffect(() => {
+    const f = () => setV(read());
+    window.addEventListener('savings', f);
+    return () => window.removeEventListener('savings', f);
+  }, []);
+  if (!v) return null;
+  return <p className="muted small">Diesen Monat beim Einkaufen gespart (abgehakt): {euro(v)}</p>;
 }

@@ -16,6 +16,8 @@ import {
 } from './edeka';
 import { addCost, costUsd, monthCost, type Tracker } from './costs';
 import { geocode, km, nearestStores } from './stores';
+import { sendPush, vapidKeys, type PushSub } from './push';
+import { matchWatch } from '../shared/watch';
 import { computeDealsFrom, snapshot, isoWeek, type WeekSnapshot } from './deals';
 import type { ChainInfo, Leaflet, LeafletsResponse, Offer, OffersResponse, RecipeRequest } from '../shared/types';
 
@@ -179,6 +181,47 @@ export async function getOffers(env: Env, plz: string, marketIds: number[] = [],
   };
 }
 
+// ---------- Benachrichtigungen (Merkliste) ----------
+
+const shortName = (c: string) => c.replace('Netto Marken-Discount', 'Netto').replace('PENNY', 'Penny').replace(/^nah\s*(&|und)\s*gut.*/i, 'nah & gut');
+
+async function pushMessage(env: Env, sub: PushSub): Promise<{ title: string; body: string }> {
+  const data = await getOffers(env, sub.plz, sub.markets);
+  const now = Date.now();
+  const offers = data.offers.filter(
+    (o) => (!sub.chains.length || sub.chains.includes(o.chain)) && Date.parse(o.validFrom) <= now + 12 * HOUR && Date.parse(o.validTo) >= now,
+  );
+  if (!sub.watch.length) return { title: 'Neue Angebote der Woche', body: 'Die Prospekte der Woche sind da – schau mal rein.' };
+  const hits = sub.watch
+    .map((t) => ({ t, chains: [...new Set(matchWatch(t, offers).map((o) => shortName(o.chain)))] }))
+    .filter((h) => h.chains.length);
+  if (!hits.length) return { title: 'Merkliste', body: 'Von deiner Merkliste ist diese Woche nichts im Angebot.' };
+  return {
+    title: `Merkliste: ${hits.length} von ${sub.watch.length} im Angebot`,
+    body: hits.map((h) => `${h.t}: ${h.chains.join(', ')}`).join(' · '),
+  };
+}
+
+const subsOf = async (env: Env) => (await kvGet<PushSub[]>(env, 'push:subs')) ?? [];
+
+async function weeklyPush(env: Env): Promise<string> {
+  if (!env.CACHE) return 'kein KV';
+  // Montags ab 7 Uhr (deutsche Zeit), einmal pro Woche
+  const berlin = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Berlin' }));
+  if (berlin.getDay() !== 1 || berlin.getHours() < 7) return 'nicht Montagmorgen';
+  const key = `push:sent:${isoWeek(berlin)}`;
+  if (await env.CACHE.get(key)) return 'diese Woche schon gesendet';
+  await env.CACHE.put(key, new Date().toISOString(), { expirationTtl: 14 * 86400 });
+  const subs = await subsOf(env);
+  const keep: PushSub[] = [];
+  for (const sub of subs) {
+    const status = await sendPush(env.CACHE, sub.endpoint).catch(() => 0);
+    if (status !== 404 && status !== 410) keep.push(sub);
+  }
+  if (keep.length !== subs.length) await kvPut(env, 'push:subs', keep);
+  return `an ${subs.length} Gerät(e) gesendet`;
+}
+
 // ---------- Kaufempfehlungen ----------
 
 /** Einmal pro Woche einen Schnappschuss der Preise ablegen (Grundlage für "selten" / "günstiger als sonst") */
@@ -329,6 +372,7 @@ async function runCron(env: Env): Promise<string[]> {
   if (list.length !== all.length) await kvPut(env, 'edeka:watch', list);
   const log: string[] = [];
   await kvPut(env, 'cron:last', { at: new Date().toISOString(), markets: list.length });
+  log.push(`Push: ${await weeklyPush(env).catch((e) => String(e))}`);
   for (const m of list) {
     try {
       log.push(...(await processMarket(env, m)));
@@ -369,6 +413,41 @@ export default {
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
 
     try {
+      if (url.pathname === '/api/push/key' && env.CACHE) {
+        return json({ publicKey: (await vapidKeys(env.CACHE)).publicKey });
+      }
+      if (url.pathname === '/api/push/subscribe' && request.method === 'POST') {
+        const b = (await request.json()) as Partial<PushSub>;
+        if (!b.endpoint || !validPlz(b.plz)) return error('Abo unvollständig', 400);
+        const sub: PushSub = {
+          endpoint: b.endpoint,
+          plz: b.plz,
+          markets: (b.markets ?? []).slice(0, 6),
+          chains: (b.chains ?? []).slice(0, 12),
+          watch: (b.watch ?? []).map((w) => String(w).slice(0, 40)).slice(0, 30),
+          updatedAt: new Date().toISOString(),
+        };
+        const subs = (await subsOf(env)).filter((x) => x.endpoint !== sub.endpoint);
+        await kvPut(env, 'push:subs', [...subs, sub].slice(-10));
+        return json({ ok: true });
+      }
+      if (url.pathname === '/api/push/unsubscribe' && request.method === 'POST') {
+        const b = (await request.json()) as { endpoint?: string };
+        await kvPut(env, 'push:subs', (await subsOf(env)).filter((x) => x.endpoint !== b.endpoint));
+        return json({ ok: true });
+      }
+      if (url.pathname === '/api/push/latest') {
+        const subs = await subsOf(env);
+        const sub = subs.find((x) => x.endpoint === url.searchParams.get('endpoint')) ?? subs[subs.length - 1];
+        return json(sub ? await pushMessage(env, sub) : { title: 'Angebotsküche', body: 'Neue Angebote der Woche sind da.' });
+      }
+      if (url.pathname === '/api/push/test' && request.method === 'POST' && env.CACHE) {
+        const b = (await request.json()) as { endpoint?: string };
+        if (!b.endpoint || !(await subsOf(env)).some((x) => x.endpoint === b.endpoint)) return error('Gerät nicht angemeldet', 404);
+        if (!(await checkLimit(env, 'pushtest', 10))) return error('Heute genug getestet', 429);
+        return json({ status: await sendPush(env.CACHE, b.endpoint) });
+      }
+
       // Löscht Cookies und Speicher dieser Website im Browser (andere Websites bleiben unberührt)
       if (url.pathname === '/api/clear') {
         return new Response(JSON.stringify({ ok: true }), {

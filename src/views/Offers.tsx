@@ -83,7 +83,16 @@ export function OffersView(p: Props) {
       ) : mode === 'tipps' ? (
         <DealsView plz={p.plz} markets={p.markets} offers={p.offers} chains={p.chains} onToggleCart={p.onToggleCart} inCart={p.inCart} />
       ) : mode === 'merkliste' ? (
-        <WatchView terms={terms} setTerms={setTerms} offers={inChains} onToggleCart={p.onToggleCart} inCart={p.inCart} />
+        <WatchView
+          terms={terms}
+          setTerms={setTerms}
+          offers={inChains}
+          onToggleCart={p.onToggleCart}
+          inCart={p.inCart}
+          plz={p.plz}
+          markets={p.markets}
+          chains={p.chains}
+        />
       ) : (
         <>
           <div className="search-row">

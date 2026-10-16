@@ -113,6 +113,7 @@ export default defineConfig({
       injectRegister: false,
       workbox: {
         skipWaiting: true,
+        importScripts: ['push-sw.js'],
         clientsClaim: true,
         cleanupOutdatedCaches: true,
         navigateFallbackDenylist: [/^\/api\//, /^\/cdn-cgi\//, /^\/version\.json/],

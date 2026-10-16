@@ -9,6 +9,8 @@ export interface ListItem {
   packs?: number;
   image?: string;
   crop?: Crop;
+  /** Ersparnis gegenüber dem Normalpreis (nur wenn bekannt) */
+  saving?: number;
   recipes: string[];
 }
 
@@ -17,6 +19,8 @@ export interface MergedList {
   other: ListItem[];
   pantry: string[];
   total: number;
+  /** Summe der bekannten Ersparnisse */
+  saving: number;
 }
 
 /** Fasst die Einkaufslisten mehrerer Rezepte zusammen (gleiche Angebote werden addiert) */
@@ -31,7 +35,7 @@ export function mergeRecipes(recipes: Recipe[], singles: Offer[] = []): MergedLi
           pantry: false,
           cost: o.price,
           usedCost: o.price,
-          offer: { id: o.id, chain: o.chain, name: o.name, brand: o.brand, pack: o.pack, price: o.price, packs: 1, image: o.image, page: o.page, crop: o.crop },
+          offer: { id: o.id, chain: o.chain, name: o.name, brand: o.brand, pack: o.pack, price: o.price, packs: 1, image: o.image, page: o.page, crop: o.crop, oldPrice: o.oldPrice },
         })),
       } as unknown as Recipe)
     : null;
@@ -58,6 +62,7 @@ export function mergeRecipes(recipes: Recipe[], singles: Offer[] = []): MergedLi
           packs,
           image: o.image,
           crop: o.crop,
+          saving: o.oldPrice && o.oldPrice > o.price ? Math.round(packs * (o.oldPrice - o.price) * 100) / 100 : undefined,
           recipes: [...new Set([...(prev?.recipes ?? []), r.title])],
         });
       } else if (i.pantry) {
@@ -87,7 +92,8 @@ export function mergeRecipes(recipes: Recipe[], singles: Offer[] = []): MergedLi
   });
   const otherItems = [...other.values()];
   const total = chains.reduce((s, c) => s + c.total, 0) + otherItems.reduce((s, x) => s + x.cost, 0);
-  return { chains, other: otherItems, pantry: [...pantry], total: Math.round(total * 100) / 100 };
+  const saving = chains.reduce((s, c) => s + c.items.reduce((t, i) => t + (i.saving ?? 0), 0), 0);
+  return { chains, other: otherItems, pantry: [...pantry], total: Math.round(total * 100) / 100, saving: Math.round(saving * 100) / 100 };
 }
 
 /** Text zum Teilen (WhatsApp, Notizen, Google Keep …) */

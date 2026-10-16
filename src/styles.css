@@ -1515,3 +1515,21 @@ h3 {
 .saved-item .link {
   text-align: left;
 }
+
+.saving {
+  margin: 4px 0;
+  font-weight: 700;
+  color: var(--basil);
+}
+
+.push-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+  font-size: 0.9rem;
+}
+.push-actions {
+  display: flex;
+  gap: 14px;
+}

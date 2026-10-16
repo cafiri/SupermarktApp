@@ -265,6 +265,7 @@ export function priceRecipe(raw: RawRecipe, byId: Map<number, Offer>, servings: 
           brand: o.brand,
           pack: o.pack,
           price: o.price,
+          oldPrice: o.oldPrice,
           appPrice: o.appPrice,
           packs,
           image: o.image || undefined,

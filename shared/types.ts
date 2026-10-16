@@ -152,6 +152,7 @@ export interface RecipeIngredient {
     brand?: string;
     pack?: string;
     price: number;
+    oldPrice?: number;
     appPrice?: number;
     packs: number;
     image?: string;
