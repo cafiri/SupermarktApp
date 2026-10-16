@@ -17,13 +17,20 @@ function mockApi(): Plugin {
           }, delay);
         if (req.url.startsWith('/api/offers')) {
           const fx = JSON.parse(readFileSync('test/fixture-offers.json', 'utf8'));
-          return send({ ...fx, fetchedAt: new Date().toISOString() });
+          const nearby = [
+            { name: 'nah & gut Durasin', count: 0, kind: 'markt', marketId: 10007022, address: 'Schwarzer Weg 2, Meinersen' },
+            { name: 'EDEKA Müller', count: 0, kind: 'markt', marketId: 10002209, address: 'Hauptstr. 8, Müden' },
+          ];
+          return send({ ...fx, nearby, fetchedAt: new Date().toISOString() });
         }
         if (req.url.startsWith('/api/recipes')) {
           return send(JSON.parse(readFileSync('test/fixture-recipes.json', 'utf8')), 1500);
         }
         if (req.url.startsWith('/api/health')) return send({ ok: true, hasKey: false, model: 'mock' });
-        if (req.url.startsWith('/api/leaflets')) return send({ leaflets: [] });
+        if (req.url.startsWith('/api/leaflets')) {
+          const page = (n: number) => `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="640" height="1086"><rect width="640" height="1086" fill="#fff"/><rect x="20" y="20" width="600" height="160" fill="#e30613"/><text x="40" y="120" font-size="72" fill="#fff" font-family="sans-serif">Seite ${n}</text></svg>`)}`;
+          return send({ leaflets: [{ id: 'mg-1', chain: 'Lidl', validFrom: new Date().toISOString(), validTo: new Date(Date.now() + 3 * 864e5).toISOString(), pages: [1, 2, 3].map(page), pagesLarge: [1, 2, 3].map(page) }] });
+        }
         next();
       });
     },
