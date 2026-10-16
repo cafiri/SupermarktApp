@@ -7,6 +7,7 @@ import { OfferThumb } from './OfferRow';
 interface Props {
   recipes: Recipe[];
   singles: Offer[];
+  have: Record<string, string[]>;
   removeSingle: (o: Offer) => void;
   checked: string[];
   toggleItem: (key: string) => void;
@@ -18,7 +19,7 @@ interface Props {
 }
 
 export function ShoppingView(p: Props) {
-  const list = useMemo(() => mergeRecipes(p.recipes, p.singles), [p.recipes, p.singles]);
+  const list = useMemo(() => mergeRecipes(p.recipes, p.singles, p.have), [p.recipes, p.singles, p.have]);
   const checked = new Set(p.checked);
   const [msg, setMsg] = useState<string | null>(null);
   const store = (chain: string) => p.stores.find((s) => s.chain === chain);

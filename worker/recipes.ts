@@ -1,7 +1,7 @@
 // Erzeugt Rezepte aus den aktuellen Angeboten mit der Claude API.
 import type { Diet, Offer, Recipe, RecipeIngredient, RecipeRequest, RecipesResponse } from '../shared/types';
 import type { Env } from './index';
-import type { Tracker, Usage } from './costs';
+import { costUsd as costUsd_, type Tracker, type Usage } from './costs';
 
 const DEFAULT_MODEL = 'claude-sonnet-5-5';
 const MAX_OFFERS = 650;
@@ -343,6 +343,7 @@ export async function generateRecipes(req: RecipeRequest, allOffers: Offer[], en
   }
   const data = (await res.json()) as { stop_reason?: string; usage?: Usage; content: { type: string; text?: string }[] };
   await track?.(model, data.usage);
+  const costUsd = Math.round(costUsd_(model, data.usage) * 1000) / 1000;
   if (data.stop_reason === 'max_tokens') throw new Error('Die Antwort der KI war zu lang und wurde abgeschnitten. Bitte nochmal versuchen.');
   const text = data.content.find((c) => c.type === 'text')?.text ?? '';
   let raws: RawRecipe[] = [];
@@ -363,6 +364,7 @@ export async function generateRecipes(req: RecipeRequest, allOffers: Offer[], en
     model,
     offerCount: offers.length,
     createdAt: new Date().toISOString(),
+    costUsd,
     unusedCart: cartFound.filter((id) => !used.has(id)),
   };
 }

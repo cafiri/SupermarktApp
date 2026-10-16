@@ -35,12 +35,32 @@ export async function nearestStores(plz: string, center?: { lat: number; lon: nu
   const { lat, lon } = c;
 
   const q = `[out:json][timeout:25];nwr["shop"="supermarket"](around:20000,${lat},${lon});out center tags;`;
-  const res = await fetch('https://overpass-api.de/api/interpreter', {
-    method: 'POST',
-    headers: { 'user-agent': UA, 'content-type': 'application/x-www-form-urlencoded' },
-    body: `data=${encodeURIComponent(q)}`,
-  });
-  if (!res.ok) throw new Error(`Filialsuche antwortet mit ${res.status}`);
+  // Mehrere öffentliche Overpass-Server – der Hauptserver blockt manchmal Cloud-Anfragen
+  const servers = [
+    'https://overpass-api.de/api/interpreter',
+    'https://overpass.kumi.systems/api/interpreter',
+    'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+    'https://overpass.private.coffee/api/interpreter',
+  ];
+  let res: Response | null = null;
+  const tried: string[] = [];
+  for (const url of servers) {
+    try {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'user-agent': UA, 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
+        body: `data=${encodeURIComponent(q)}`,
+      });
+      if (r.ok && (r.headers.get('content-type') ?? '').includes('json')) {
+        res = r;
+        break;
+      }
+      tried.push(`${new URL(url).hostname}: ${r.status}`);
+    } catch (e) {
+      tried.push(`${new URL(url).hostname}: ${String(e)}`);
+    }
+  }
+  if (!res) throw new Error(`Filialsuche nicht erreichbar (${tried.join(', ')})`);
   const d = (await res.json()) as { elements: { lat?: number; lon?: number; center?: { lat: number; lon: number }; tags?: Record<string, string> }[] };
 
   const best = new Map<string, StoreInfo>();

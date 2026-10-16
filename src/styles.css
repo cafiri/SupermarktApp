@@ -1533,3 +1533,59 @@ h3 {
   display: flex;
   gap: 14px;
 }
+
+.segmented.five {
+  grid-template-columns: repeat(5, auto);
+}
+.segmented.five button {
+  font-size: 0.78rem;
+  padding: 10px 6px;
+  white-space: nowrap;
+}
+.gear {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+}
+.gear.on {
+  background: rgba(255, 255, 255, 0.2);
+}
+.gear svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.topbar-row .plz-pill {
+  margin-left: auto;
+}
+.cost-line {
+  margin: -4px 0 8px;
+}
+/* Kopfzeile: Titel darf schrumpfen, damit Zahnrad und PLZ immer passen */
+.topbar-row {
+  gap: 8px;
+}
+.brand {
+  min-width: 0;
+  flex: 1 1 auto;
+  font-size: clamp(1.25rem, 6.2vw, 1.6rem);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.topbar-row .plz-pill {
+  margin-left: 0;
+  flex: none;
+}
+html,
+body {
+  overflow-x: hidden;
+}

@@ -24,7 +24,7 @@ export interface MergedList {
 }
 
 /** Fasst die Einkaufslisten mehrerer Rezepte zusammen (gleiche Angebote werden addiert) */
-export function mergeRecipes(recipes: Recipe[], singles: Offer[] = []): MergedList {
+export function mergeRecipes(recipes: Recipe[], singles: Offer[] = [], have: Record<string, string[]> = {}): MergedList {
   // Einzelne Angebote wie eine Mini-Rezeptzutat behandeln (1 Packung)
   const singleRecipe: Recipe | null = singles.length
     ? ({
@@ -45,7 +45,9 @@ export function mergeRecipes(recipes: Recipe[], singles: Offer[] = []): MergedLi
   const pantry = new Set<string>();
 
   for (const r of recipes) {
+    const skip = new Set(have[r.id] ?? []);
     for (const i of r.ingredients) {
+      if (skip.has(i.name)) continue;
       if (i.offer) {
         const o = i.offer;
         const m = byChain.get(o.chain) ?? new Map<string, ListItem>();

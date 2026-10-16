@@ -14,6 +14,8 @@ export function RecipeDetail({
   onSave,
   dislikes,
   onDislike,
+  have,
+  onHave,
 }: {
   recipe: Recipe;
   onBack: () => void;
@@ -23,21 +25,19 @@ export function RecipeDetail({
   onSave: () => void;
   dislikes: string[];
   onDislike: (name: string) => void;
+  have: string[];
+  onHave: (name: string) => void;
 }) {
   const ex = expiry(r);
-  const [checked, setChecked] = useState<Set<string>>(new Set());
-  const toggle = (k: string) =>
-    setChecked((s) => {
-      const n = new Set(s);
-      if (n.has(k)) n.delete(k);
-      else n.add(k);
-      return n;
-    });
+  // Haken = "hab ich schon": kommt nicht auf die Einkaufsliste
+  const checked = new Set(have);
+  const toggle = (k: string) => onHave(k);
+  const haveCost = r.ingredients.filter((i) => checked.has(i.name)).reduce((s, i) => s + i.cost, 0);
 
   const [shared, setShared] = useState<string | null>(null);
 
   async function shareList() {
-    setShared(await shareText(`Einkaufsliste: ${r.title}`, listAsText(`Einkaufsliste: ${r.title}`, mergeRecipes([r]), shortChain)));
+    setShared(await shareText(`Einkaufsliste: ${r.title}`, listAsText(`Einkaufsliste: ${r.title}`, mergeRecipes([r], [], { [r.id]: have }), shortChain)));
   }
 
   // Einkaufsliste nach Markt gruppieren
@@ -93,6 +93,8 @@ export function RecipeDetail({
             Teilen
           </button>
         </div>
+        <p className="muted small">Hake an, was du schon zu Hause hast – das kommt nicht auf die Einkaufsliste.</p>
+        {haveCost > 0 && <p className="saving">Schon zu Hause: {euro(haveCost)} weniger einkaufen</p>}
         {shared && (
           <p className="note" role="status">
             {shared}
@@ -174,7 +176,7 @@ function ShopItem({ i, checked, onToggle }: { i: RecipeIngredient; checked: bool
   return (
     <li className={`shop-item ${checked ? 'done' : ''}`}>
       <label>
-        <input type="checkbox" checked={checked} onChange={onToggle} />
+        <input type="checkbox" checked={checked} onChange={onToggle} aria-label={`${i.name}: hab ich schon`} />
         {i.offer && <OfferThumb src={i.offer.image} crop={i.offer.crop} size={44} alt={i.offer.name} />}
         <span className="shop-text">
           <span className="shop-name">
@@ -195,7 +197,7 @@ function ShopItem({ i, checked, onToggle }: { i: RecipeIngredient; checked: bool
           </span>
         </span>
         <span className="shop-price">
-          {i.offer ? euro(i.cost) : `~ ${euro(i.cost)}`}
+          {checked ? 'hab ich' : i.offer ? euro(i.cost) : `~ ${euro(i.cost)}`}
         </span>
       </label>
     </li>

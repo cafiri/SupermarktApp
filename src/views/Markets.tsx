@@ -11,7 +11,7 @@ interface Health {
 }
 
 /** Liste der Zutaten, die nie vorkommen sollen – einsehbar und änderbar */
-function Dislikes({ list, toggle }: { list: string[]; toggle: (n: string) => void }) {
+export function Dislikes({ list, toggle }: { list: string[]; toggle: (n: string) => void }) {
   const [input, setInput] = useState('');
   return (
     <section className="card">
@@ -50,7 +50,7 @@ const when = (iso: string) =>
 const day = (iso: string) => new Date(iso).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'numeric' });
 
 /** Welche Prospekte die KI eingelesen hat – und wann */
-function ProspektInfo({ markets }: { markets: number[] }) {
+export function ProspektInfo({ markets }: { markets: number[] }) {
   const [s, setS] = useState<ProspektStatus | null>(null);
   useEffect(() => {
     if (!markets.length) return;
@@ -92,7 +92,7 @@ function ProspektInfo({ markets }: { markets: number[] }) {
   );
 }
 
-function CostInfo() {
+export function CostInfo() {
   const [h, setH] = useState<Health | null>(null);
   useEffect(() => {
     api<Health>('/api/health').then(setH).catch(() => setH(null));
@@ -159,10 +159,6 @@ export function MarketsView(p: Props) {
           )
         }
       />
-      <Dislikes list={p.settings.dislikes ?? []} toggle={p.onToggleDislike} />
-      <ProspektInfo markets={p.trip?.markets ?? p.settings.markets ?? []} />
-      <CostInfo />
-      <AppInfo />
       <p className="muted pad small">
         Ketten wie Lidl oder REWE haben in der ganzen Region dieselben Angebote. Bei EDEKA und nah & gut gilt der Prospekt des
         einzelnen Markts – den liest die App einmal pro Woche ein.
@@ -213,7 +209,7 @@ function ChainPicker(props: {
   // Nächste Filiale bei Ketten (nur für die Heimat-PLZ bekannt)
   const store = (chain: string) => {
     const st = props.stores?.find((x) => x.chain === chain);
-    return st?.address ? `nächste: ${st.address}` : undefined;
+    return st?.address ? `nächste: ${st.address} · ${st.distanceKm.toLocaleString("de-DE")} km` : undefined;
   };
 
   const toggle = (c: ChainInfo) => {

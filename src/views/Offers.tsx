@@ -26,26 +26,34 @@ interface Props {
 }
 
 export function OffersView(p: Props) {
-  const [mode, setMode] = useState<'liste' | 'tipps' | 'merkliste' | 'prospekte'>('liste');
+  const [mode, setMode] = useState<'liste' | 'tipps' | 'merkliste' | 'bald' | 'prospekte'>('liste');
   const [terms, setTerms] = useState<string[]>(readWatch);
   const [group, setGroup] = useState<Group | 'alle'>('fleisch');
   const [query, setQuery] = useState('');
 
   const inChains = useMemo(() => p.offers.filter((o) => p.chains.includes(o.chain)), [p.offers, p.chains]);
+  // Gilt heute = Start spätestens heute Abend; alles Spätere kommt unter "Bald"
+  const endOfToday = useMemo(() => {
+    const d = new Date();
+    d.setHours(23, 59, 59, 999);
+    return d.getTime();
+  }, []);
+  const nowOffers = useMemo(() => inChains.filter((o) => Date.parse(o.validFrom) <= endOfToday), [inChains, endOfToday]);
+  const soonOffers = useMemo(() => inChains.filter((o) => Date.parse(o.validFrom) > endOfToday), [inChains, endOfToday]);
   const counts = useMemo(() => {
     const m = new Map<Group, number>();
-    inChains.forEach((o) => m.set(o.group, (m.get(o.group) ?? 0) + 1));
+    nowOffers.forEach((o) => m.set(o.group, (m.get(o.group) ?? 0) + 1));
     return m;
-  }, [inChains]);
+  }, [nowOffers]);
 
   const watchHits = useMemo(() => terms.filter((t) => matchWatch(t, inChains).length).length, [terms, inChains]);
 
   const list = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return inChains
+    return nowOffers
       .filter((o) => (q ? `${o.name} ${o.brand ?? ''} ${o.category} ${o.desc}`.toLowerCase().includes(q) : group === 'alle' || o.group === group))
       .sort((a, b) => (a.refPrice ?? a.price) - (b.refPrice ?? b.price));
-  }, [inChains, group, query]);
+  }, [nowOffers, group, query]);
 
   if (!p.hasPlz) {
     return (
@@ -62,12 +70,13 @@ export function OffersView(p: Props) {
   return (
     <section aria-label="Angebote">
       <div className="mode-row">
-        <div className="segmented four" role="tablist" aria-label="Ansicht">
+        <div className="segmented five" role="tablist" aria-label="Ansicht">
           {(
             [
-              ['liste', 'Alle'],
+              ['liste', 'Jetzt'],
               ['tipps', 'Tipps'],
               ['merkliste', watchHits ? `Merkliste ${watchHits}` : 'Merkliste'],
+              ['bald', soonOffers.length ? `Bald ${soonOffers.length}` : 'Bald'],
               ['prospekte', 'Prospekte'],
             ] as const
           ).map(([m, label]) => (
@@ -82,6 +91,8 @@ export function OffersView(p: Props) {
         <LeafletGrid plz={p.plz} markets={p.markets} chains={p.chains} offers={inChains} onOpen={p.onOpenLeaflet} />
       ) : mode === 'tipps' ? (
         <DealsView plz={p.plz} markets={p.markets} offers={p.offers} chains={p.chains} onToggleCart={p.onToggleCart} inCart={p.inCart} />
+      ) : mode === 'bald' ? (
+        <SoonView offers={soonOffers} onToggleCart={p.onToggleCart} inCart={p.inCart} />
       ) : mode === 'merkliste' ? (
         <WatchView
           terms={terms}
@@ -112,7 +123,7 @@ export function OffersView(p: Props) {
                 </button>
               ))}
               <button role="tab" aria-selected={group === 'alle'} className={`chip ${group === 'alle' ? 'on' : ''}`} onClick={() => setGroup('alle')}>
-                Alle <span className="count">{inChains.length}</span>
+                Alle <span className="count">{nowOffers.length}</span>
               </button>
             </div>
           )}
@@ -215,5 +226,47 @@ function LeafletGrid(props: {
         })}
       </ul>
     </>
+  );
+}
+
+const DAYS = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+
+/** Kommende Angebote (z. B. Prospekte der nächsten Woche), nach Markt und Starttag */
+function SoonView(p: { offers: Offer[]; onToggleCart: (o: Offer) => void; inCart: Set<number> }) {
+  const [chain, setChain] = useState<string>('alle');
+  const chains = [...new Set(p.offers.map((o) => o.chain))];
+  const list = p.offers
+    .filter((o) => chain === 'alle' || o.chain === chain)
+    .sort((a, b) => Date.parse(a.validFrom) - Date.parse(b.validFrom) || ORDER.indexOf(a.group) - ORDER.indexOf(b.group) || a.price - b.price);
+  const byStart = new Map<string, Offer[]>();
+  for (const o of list) {
+    const d = new Date(o.validFrom);
+    const k = `ab ${DAYS[d.getDay()]} ${d.getDate()}.${d.getMonth() + 1}.`;
+    byStart.set(k, [...(byStart.get(k) ?? []), o]);
+  }
+  if (!p.offers.length) return <p className="muted pad">Noch keine Angebote für die kommenden Tage veröffentlicht.</p>;
+  return (
+    <section aria-label="Kommende Angebote">
+      <div className="group-row" role="tablist" aria-label="Markt">
+        <button className={`chip ${chain === 'alle' ? 'on' : ''}`} onClick={() => setChain('alle')}>
+          Alle <span className="count">{p.offers.length}</span>
+        </button>
+        {chains.map((c) => (
+          <button key={c} className={`chip ${chain === c ? 'on' : ''}`} onClick={() => setChain(c)}>
+            {shortChain(c)} <span className="count">{p.offers.filter((o) => o.chain === c).length}</span>
+          </button>
+        ))}
+      </div>
+      {[...byStart.entries()].map(([label, offers]) => (
+        <section key={label} className="list-group">
+          <h2 className="section-title">{label}</h2>
+          <ul className="offer-list">
+            {offers.map((o) => (
+              <OfferRow key={o.id} o={o} onToggleCart={p.onToggleCart} inCart={p.inCart.has(o.id)} />
+            ))}
+          </ul>
+        </section>
+      ))}
+    </section>
   );
 }

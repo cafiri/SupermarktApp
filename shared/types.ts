@@ -199,6 +199,8 @@ export interface RecipesResponse {
   model: string;
   offerCount: number;
   createdAt?: string;
+  /** Was diese Anfrage bei der KI gekostet hat (US-Dollar) */
+  costUsd?: number;
   /** Korb-Angebote, die in keinem Rezept vorkommen */
   unusedCart?: number[];
 }

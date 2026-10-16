@@ -4,13 +4,14 @@ import { api, loadLastRecipes, LoginError, useCart, useOffers, useSavedRecipes, 
 import { shortChain } from './format';
 import { CookView, type GenState } from './views/Cook';
 import { ShoppingView } from './views/Shopping';
+import { SettingsView } from './views/Settings';
 import { ListContext } from './actions';
 import { OffersView } from './views/Offers';
 import { MarketsView } from './views/Markets';
 import { RecipeDetail } from './views/RecipeDetail';
 import { LeafletView } from './views/LeafletView';
 
-type Tab = 'kochen' | 'angebote' | 'einkauf' | 'maerkte';
+type Tab = 'kochen' | 'angebote' | 'einkauf' | 'maerkte' | 'einstellungen';
 
 export default function App() {
   const [settings, updateSettings] = useSettings();
@@ -58,11 +59,12 @@ export default function App() {
     window.scrollTo(0, 0);
   }, []);
 
-  const ready = !!plz && activeChains.length > 0;
+  // Märkte sind eingerichtet; ob heute welche ausgewählt sind, prüft der Knopf
+  const ready = !!plz && baseChains.length > 0;
 
   // Rezepte werden NUR hier gebaut – ausgelöst durch den Knopf im Kochen-Tab
   const generate = useCallback(async (replaceId?: string) => {
-    if (!ready || gen.loading || replacing) return;
+    if (!ready || activeChains.length === 0 || gen.loading || replacing) return;
     if (replaceId) setReplacing(replaceId);
     else setGen({ loading: true, error: null, loginExpired: false, startedAt: Date.now() });
     try {
@@ -130,6 +132,8 @@ export default function App() {
         onSave={() => saved.toggle(detail)}
         dislikes={settings.dislikes ?? []}
         onDislike={toggleDislike}
+        have={shopping.have[detail.id] ?? []}
+        onHave={(name) => shopping.toggleHave(detail.id, name)}
       />
     );
   if (leaflet)
@@ -157,6 +161,12 @@ export default function App() {
               {trip ? 'Unterwegs' : 'Zuhause'} · {plz}
             </button>
           )}
+          <button className={`gear ${tab === 'einstellungen' ? 'on' : ''}`} onClick={() => setTab('einstellungen')} aria-label="Einstellungen">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+            </svg>
+          </button>
         </div>
         {baseChains.length > 0 && (
           <div className="chain-row" role="group" aria-label="Heute einkaufen bei">
@@ -236,6 +246,7 @@ export default function App() {
           <ShoppingView
             recipes={shopping.recipes}
             singles={shopping.offers}
+            have={shopping.have}
             removeSingle={shopping.toggleOffer}
             checked={shopping.checked}
             toggleItem={shopping.toggleItem}
@@ -246,6 +257,7 @@ export default function App() {
             goToCook={() => setTab('kochen')}
           />
         )}
+        {tab === 'einstellungen' && <SettingsView settings={settings} markets={markets} onToggleDislike={toggleDislike} />}
         {tab === 'maerkte' && (
           <MarketsView
             settings={settings}

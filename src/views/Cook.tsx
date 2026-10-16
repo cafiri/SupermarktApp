@@ -59,6 +59,8 @@ export function CookView(p: Props) {
   const { settings: s, updateSettings: set, gen } = p;
   const elapsed = useElapsed(gen.loading, gen.startedAt);
 
+  const [showSaved, setShowSaved] = useState(false);
+
   if (!p.ready) {
     return (
       <section className="empty">
@@ -75,7 +77,6 @@ export function CookView(p: Props) {
   const combos = s.combos ?? [];
   const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x));
   const activeCombo = combos.find((c) => sameSet(c.chains, p.activeChains));
-  const [showSaved, setShowSaved] = useState(false);
   const cartNames = new Map(p.cart.map((o) => [o.id, o.name]));
   const allExpired = !!p.results?.recipes.length && p.results.recipes.every((r) => expiry(r).level === 'abgelaufen');
 
@@ -243,6 +244,7 @@ export function CookView(p: Props) {
             Claude sucht die passenden Angebote und rechnet die Preise aus. Das dauert {s.fast ? 'etwa 10–20' : 'meist 30–70'} Sekunden. ({elapsed} s)
           </p>
         )}
+        {p.activeChains.length === 0 && <p className="warn">Wähle oben mindestens einen Markt aus.</p>}
         {gen.error && (
           <p className="error" role="alert">
             {gen.error}{' '}
@@ -258,6 +260,12 @@ export function CookView(p: Props) {
       {p.results && p.results.recipes.length > 0 && (
         <section className={`results ${gen.loading ? 'stale' : ''}`} aria-label="Rezepte, günstigste zuerst" aria-busy={gen.loading}>
           <h2 className="section-title">Günstigste zuerst</h2>
+          {p.results.costUsd != null && (
+            <p className="muted small pad cost-line">
+              Diese Rezepte haben {p.results.costUsd.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 3 })} $ gekostet
+              {p.results.model?.includes('haiku') ? ' (Schnell-Modus)' : ''}
+            </p>
+          )}
           {allExpired && <p className="warn pad">Die Angebote dieser Rezepte sind abgelaufen. Bau neue Rezepte für die aktuellen Angebote.</p>}
           {(p.results.unusedCart?.length ?? 0) > 0 && (
             <p className="note pad">
