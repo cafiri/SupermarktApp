@@ -43,8 +43,8 @@ const RE_FISCH = /(lachs|fisch|garnele|shrimp|hering|forelle|kabeljau|seelachs|m
 const RE_FLEISCH = /(hack|hähnchen|huhn|pute|schwein|rind|kalb|lamm|steak|schnitzel|gulasch|braten|filet|keule|nacken|kotelett|geschnetzelt|bratwurst|frikadell|chicken|pulled|bacon|würstchen|wurst|schinken|salami)/i;
 const RE_MILCH = /(käse|milch|joghurt|quark|sahne|butter|mozzarella|feta|hirtenkäse|frischkäse|skyr|eier\b|schmand|crème fraîche)/i;
 const RE_BROT = /(brot|brötchen|baguette|buns|bagel|toast|croissant|brezel)/i;
-const RE_SUESS = /(schoko|pudding|mousse|keks|kuchen|muffin|gummi|jelly|bonbon|eis\b|soft-eis|riegel|flips|chips|praline|waffel|donut|pancake|sirup)/i;
-const RE_DRINK = /(drink|kaffee|barista|espresso|cappuccino|latte|cola|saft|limo|bier|wein|whisk|wodka|likör|wasser|mocha|tee\b|eiskaffee)/i;
+const RE_SUESS = /(schoko|pudding|mousse|keks|(?<!flamm)kuchen|muffin|gummi|jelly|bonbon|eis\b|soft-eis|riegel|flips|chips|praline|waffel|donut|pancake|sirup)/i;
+const RE_DRINK = /(drink|spezi|schorle|energy|sprudel|kaffee|barista|espresso|cappuccino|latte|cola|saft|limo|bier|wein|whisk|wodka|likör|wasser|mocha|tee\b|eiskaffee)/i;
 const RE_TK = /(tiefgefroren|tk-|pizza|fritten|pommes|nuggets)/i;
 
 /** Ernährungsform aus Gruppe und Text (ohne marktguru-Kategorien) */

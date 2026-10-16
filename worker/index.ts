@@ -292,6 +292,18 @@ export default {
         return json(await getLeaflets(env, plz, parseIds(url.searchParams.get('markets'))));
       }
 
+      // Stand des Prospekt-Einlesens für einen EDEKA-Markt
+      if (url.pathname === '/api/debug/edeka') {
+        const m = await marketById(env, Number(url.searchParams.get('market')));
+        if (!m) return error('Markt unbekannt', 404);
+        const idx = await kvGet<ProspektIndex>(env, `edeka:idx:${m.marketNo}`);
+        const ps = await findProspekte(m).catch((e) => String(e));
+        const errs = Array.isArray(ps) ? await Promise.all(ps.map((p) => kvGet(env, `edeka:err:${p.key}`))) : [];
+        const watch = (await kvGet<EdekaMarket[]>(env, 'edeka:watch'))?.map((x) => x.name);
+        const first = idx?.prospekte[0] ? ((await kvGet<Offer[]>(env, `edeka:pdf:${idx.prospekte[0].key}`)) ?? []).slice(0, 15) : [];
+        return json({ market: m, watch, idx, prospekte: ps, errors: errs, sample: first.map((o) => `${o.name} | ${o.pack ?? ''} | ${o.price} | ${o.group} | ${o.diet} | S.${o.page ?? '?'}`) });
+      }
+
       // Prüft, welche Quellen von Cloudflare aus erreichbar sind
       if (url.pathname === '/api/debug/sources') {
         const urls = [
