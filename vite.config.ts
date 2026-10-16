@@ -115,7 +115,7 @@ export default defineConfig({
         skipWaiting: true,
         clientsClaim: true,
         cleanupOutdatedCaches: true,
-        navigateFallbackDenylist: [/^\/api\//],
+        navigateFallbackDenylist: [/^\/api\//, /^\/cdn-cgi\//, /^\/version\.json/],
         runtimeCaching: [
           {
             urlPattern: ({ url }) => url.hostname === 'cdn.marktguru.de' || url.pathname.startsWith('/api/img'),
