@@ -1,6 +1,33 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ChainInfo } from '../../shared/types';
-import { fetchOffers, type Settings, type Trip } from '../store';
+import { api, fetchOffers, type Settings, type Trip } from '../store';
+
+interface Health {
+  monthCostUsd: number;
+  budgetUsd: number;
+  recipesToday: number;
+  recipesPerDay: number;
+}
+
+function CostInfo() {
+  const [h, setH] = useState<Health | null>(null);
+  useEffect(() => {
+    api<Health>('/api/health').then(setH).catch(() => setH(null));
+  }, []);
+  if (!h) return null;
+  const fmt = (n: number) => n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return (
+    <section className="card cost">
+      <h2>KI-Kosten</h2>
+      <div className="meter" role="meter" aria-valuemin={0} aria-valuemax={h.budgetUsd} aria-valuenow={h.monthCostUsd}>
+        <span style={{ width: `${Math.min(100, (h.monthCostUsd / h.budgetUsd) * 100)}%` }} />
+      </div>
+      <p className="muted small">
+        Diesen Monat {fmt(h.monthCostUsd)} $ von {fmt(h.budgetUsd)} $ · heute {h.recipesToday} von {h.recipesPerDay} Rezeptanfragen
+      </p>
+    </section>
+  );
+}
 import { shortChain } from '../format';
 
 interface Props {
@@ -46,6 +73,7 @@ export function MarketsView(p: Props) {
           )
         }
       />
+      <CostInfo />
       <p className="muted pad small">
         Ketten wie Lidl oder REWE haben in der ganzen Region dieselben Angebote. Bei EDEKA und nah & gut gilt der Prospekt des
         einzelnen Markts – den liest die App einmal pro Woche ein.

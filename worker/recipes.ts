@@ -1,6 +1,7 @@
 // Erzeugt Rezepte aus den aktuellen Angeboten mit der Claude API.
 import type { Diet, Offer, Recipe, RecipeIngredient, RecipeRequest, RecipesResponse } from '../shared/types';
 import type { Env } from './index';
+import type { Tracker, Usage } from './costs';
 
 const DEFAULT_MODEL = 'claude-sonnet-5-5';
 const MAX_OFFERS = 650;
@@ -270,7 +271,7 @@ export function priceRecipe(raw: RawRecipe, byId: Map<number, Offer>, servings: 
   };
 }
 
-export async function generateRecipes(req: RecipeRequest, allOffers: Offer[], env: Env): Promise<RecipesResponse> {
+export async function generateRecipes(req: RecipeRequest, allOffers: Offer[], env: Env, track?: Tracker): Promise<RecipesResponse> {
   const persons = Math.min(Math.max(1, Math.round(req.persons || 1)), 6);
   const days = Math.min(Math.max(1, Math.round(req.days || 1)), 7);
   const r: RecipeRequest = { ...req, persons, days };
@@ -299,7 +300,8 @@ export async function generateRecipes(req: RecipeRequest, allOffers: Offer[], en
     const t = await res.text();
     throw new Error(`Claude API Fehler ${res.status}: ${t.slice(0, 300)}`);
   }
-  const data = (await res.json()) as { stop_reason?: string; content: { type: string; text?: string }[] };
+  const data = (await res.json()) as { stop_reason?: string; usage?: Usage; content: { type: string; text?: string }[] };
+  await track?.(model, data.usage);
   if (data.stop_reason === 'max_tokens') throw new Error('Die Antwort der KI war zu lang und wurde abgeschnitten. Bitte nochmal versuchen.');
   const text = data.content.find((c) => c.type === 'text')?.text ?? '';
   let raws: RawRecipe[] = [];

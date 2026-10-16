@@ -14,6 +14,38 @@ export function RecipeDetail({ recipe: r, onBack }: { recipe: Recipe; onBack: ()
       return n;
     });
 
+  const [shared, setShared] = useState<string | null>(null);
+
+  // Einkaufsliste als Text, z. B. für WhatsApp, Notizen oder Google Keep
+  async function shareList() {
+    const lines: string[] = [];
+    for (const [chain, items] of byChain) {
+      lines.push(`${shortChain(chain)}:`);
+      items.forEach((i) => lines.push(`- ${i.offer!.packs > 1 ? `${i.offer!.packs}× ` : ''}${i.offer!.name}${i.offer!.pack ? ` (${i.offer!.pack})` : ''}`));
+    }
+    if (other.length) {
+      lines.push(byChain.size ? 'Außerdem:' : 'Einkaufen:');
+      other.forEach((i) => lines.push(`- ${i.name}${i.quantity ? ` (${i.quantity})` : ''}`));
+    }
+    const text = `Einkaufsliste: ${r.title}\n\n${lines.join('\n')}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: `Einkaufsliste: ${r.title}`, text });
+        return;
+      }
+      await navigator.clipboard.writeText(text);
+      setShared('Einkaufsliste kopiert');
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return;
+      try {
+        await navigator.clipboard.writeText(text);
+        setShared('Einkaufsliste kopiert');
+      } catch {
+        setShared('Teilen klappt hier nicht');
+      }
+    }
+  }
+
   // Einkaufsliste nach Markt gruppieren
   const byChain = new Map<string, RecipeIngredient[]>();
   const other: RecipeIngredient[] = [];
@@ -51,7 +83,17 @@ export function RecipeDetail({ recipe: r, onBack }: { recipe: Recipe; onBack: ()
       </section>
 
       <section className="card">
-        <h2>Einkaufsliste</h2>
+        <div className="card-head">
+          <h2>Einkaufsliste</h2>
+          <button className="secondary small-btn" onClick={shareList}>
+            Teilen
+          </button>
+        </div>
+        {shared && (
+          <p className="note" role="status">
+            {shared}
+          </p>
+        )}
         {[...byChain.entries()].map(([chain, items]) => (
           <div key={chain} className="shop-group">
             <h3>{shortChain(chain)} – Angebote</h3>

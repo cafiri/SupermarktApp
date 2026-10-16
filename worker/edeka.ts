@@ -3,6 +3,7 @@
 // liegt als PDF im "Blätterkatalog". Den liest Claude einmal pro Woche aus (siehe extractProspekt).
 import type { ChainInfo, Diet, Group, Offer } from '../shared/types';
 import { dietFor, guessGroup } from './aldi';
+import type { Tracker, Usage } from './costs';
 
 // edeka.de lässt nur Anfragen mit vollständigen Browser-Kopfzeilen durch
 const H = {
@@ -173,7 +174,7 @@ interface RawProspektOffer {
 }
 
 /** Lässt Claude den PDF-Prospekt lesen und gibt die Lebensmittel-Angebote zurück */
-export async function extractProspekt(m: EdekaMarket, p: Prospekt, apiKey: string, model: string): Promise<Offer[]> {
+export async function extractProspekt(m: EdekaMarket, p: Prospekt, apiKey: string, model: string, track?: Tracker): Promise<Offer[]> {
   const call = async (source: Record<string, unknown>) =>
     fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -213,7 +214,8 @@ export async function extractProspekt(m: EdekaMarket, p: Prospekt, apiKey: strin
     res = await call({ type: 'base64', media_type: 'application/pdf', data: b64 });
   }
   if (!res.ok) throw new Error(`Claude API Fehler ${res.status}: ${(await res.text()).slice(0, 300)}`);
-  const data = (await res.json()) as { stop_reason?: string; content: { type: string; text?: string }[] };
+  const data = (await res.json()) as { stop_reason?: string; usage?: Usage; content: { type: string; text?: string }[] };
+  await track?.(model, data.usage);
   const text = data.content.find((c) => c.type === 'text')?.text ?? '';
   const raws = (JSON.parse(text) as { offers: RawProspektOffer[] }).offers ?? [];
   return raws

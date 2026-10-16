@@ -14,6 +14,7 @@ import {
   type EdekaMarket,
   type Prospekt,
 } from './edeka';
+import { addCost, costUsd, monthCost, type Tracker } from './costs';
 import type { ChainInfo, Leaflet, LeafletsResponse, Offer, OffersResponse, RecipeRequest } from '../shared/types';
 
 export interface Env {
@@ -23,6 +24,13 @@ export interface Env {
   MODEL?: string;
   EXTRACT_MODEL?: string;
   DAILY_RECIPE_LIMIT?: string;
+  MONTHLY_BUDGET_USD?: string;
+}
+
+const tracker = (env: Env): Tracker => (model, usage) => addCost(env.CACHE, costUsd(model, usage));
+const budget = (env: Env) => Number(env.MONTHLY_BUDGET_USD ?? 8);
+async function overBudget(env: Env): Promise<boolean> {
+  return (await monthCost(env.CACHE)) >= budget(env);
 }
 
 const HOUR = 3600_000;
@@ -219,7 +227,11 @@ async function processMarket(env: Env, m: EdekaMarket, maxExtract = 1): Promise<
         extracted++;
         try {
           const t0 = Date.now();
-          offers = await extractProspekt(m, p, env.ANTHROPIC_API_KEY, env.EXTRACT_MODEL || env.MODEL || 'claude-sonnet-5-5');
+          if (await overBudget(env)) {
+            log.push('Monatsbudget erreicht – Prospekt wird nicht eingelesen');
+            break;
+          }
+          offers = await extractProspekt(m, p, env.ANTHROPIC_API_KEY, env.EXTRACT_MODEL || env.MODEL || 'claude-sonnet-5-5', tracker(env));
           const ttl = Math.ceil((Date.parse(p.validTo) - Date.now()) / 1000) + 86400;
           await kvPut(env, key, offers, ttl);
           log.push(`${p.key}: ${offers.length} Angebote eingelesen (${Math.round((Date.now() - t0) / 1000)} s)`);
@@ -338,7 +350,17 @@ export default {
       }
 
       if (url.pathname === '/api/health') {
-        return json({ ok: true, hasKey: !!env.ANTHROPIC_API_KEY, hasCache: !!env.CACHE, model: env.MODEL ?? null });
+        const day = new Date().toISOString().slice(0, 10);
+        return json({
+          ok: true,
+          hasKey: !!env.ANTHROPIC_API_KEY,
+          hasCache: !!env.CACHE,
+          model: env.MODEL ?? null,
+          monthCostUsd: Math.round((await monthCost(env.CACHE)) * 100) / 100,
+          budgetUsd: budget(env),
+          recipesToday: Number((await env.CACHE?.get(`rl:recipes:${day}`)) ?? 0),
+          recipesPerDay: Number(env.DAILY_RECIPE_LIMIT ?? 15),
+        });
       }
 
       if (url.pathname === '/api/offers' && request.method === 'GET') {
@@ -353,12 +375,15 @@ export default {
         }
         const body = (await request.json()) as RecipeRequest;
         if (!validPlz(body.plz)) return error('Bitte eine 5-stellige PLZ angeben.', 400);
-        const max = Number(env.DAILY_RECIPE_LIMIT ?? 40);
+        if (await overBudget(env)) {
+          return error(`Das KI-Budget von ${budget(env)} $ für diesen Monat ist aufgebraucht. Ab dem 1. geht es weiter.`, 429);
+        }
+        const max = Number(env.DAILY_RECIPE_LIMIT ?? 15);
         if (!(await checkLimit(env, 'recipes', max))) {
           return error(`Tageslimit von ${max} Rezeptanfragen erreicht. Morgen geht es weiter.`, 429);
         }
         const data = await getOffers(env, body.plz, (body.markets ?? []).slice(0, 6));
-        return json(await generateRecipes(body, data.offers, env));
+        return json(await generateRecipes(body, data.offers, env, tracker(env)));
       }
 
       // Prospekt eines Markts sofort einlesen (sonst macht das der Cron alle 30 Minuten)

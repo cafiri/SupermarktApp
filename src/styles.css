@@ -982,6 +982,37 @@ h3 {
   padding-top: 4px;
 }
 
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.card-head h2 {
+  margin-bottom: 0;
+}
+.small-btn {
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: 0.9rem;
+}
+.meter {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--basil-soft);
+  overflow: hidden;
+  margin: 6px 0 8px;
+}
+.meter span {
+  display: block;
+  height: 100%;
+  background: var(--basil);
+}
+.cost p {
+  margin: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;

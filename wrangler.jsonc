@@ -18,7 +18,9 @@
   "vars": {
     "MODEL": "claude-sonnet-5-5",
     "EXTRACT_MODEL": "claude-sonnet-5-5",
-    "DAILY_RECIPE_LIMIT": "40"
+    "DAILY_RECIPE_LIMIT": "15",
+    // Obergrenze für KI-Kosten pro Monat (Rezepte + Prospekte), in US-Dollar
+    "MONTHLY_BUDGET_USD": "8"
   },
   "observability": { "enabled": true }
 }
