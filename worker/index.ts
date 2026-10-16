@@ -25,6 +25,7 @@ export interface Env {
   ANTHROPIC_API_KEY?: string;
   MODEL?: string;
   EXTRACT_MODEL?: string;
+  FAST_MODEL?: string;
   DAILY_RECIPE_LIMIT?: string;
   MONTHLY_BUDGET_USD?: string;
 }

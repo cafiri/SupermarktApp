@@ -28,6 +28,14 @@ interface Props {
   setWishes: (w: string) => void;
   gen: GenState;
   onGenerate: () => void;
+  onReplace: (id: string) => void;
+  replacing: string | null;
+  saved: Recipe[];
+  isSaved: (r: Recipe) => boolean;
+  onSave: (r: Recipe) => void;
+  baseChains: string[];
+  activeChains: string[];
+  setActiveChains: (c: string[]) => void;
   results: RecipesResponse | null;
   onOpen: (r: Recipe) => void;
   onList: (r: Recipe) => void;
@@ -64,6 +72,10 @@ export function CookView(p: Props) {
   }
 
   const servings = s.persons * s.days;
+  const combos = s.combos ?? [];
+  const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x));
+  const activeCombo = combos.find((c) => sameSet(c.chains, p.activeChains));
+  const [showSaved, setShowSaved] = useState(false);
   const cartNames = new Map(p.cart.map((o) => [o.id, o.name]));
   const allExpired = !!p.results?.recipes.length && p.results.recipes.every((r) => expiry(r).level === 'abgelaufen');
 
@@ -131,6 +143,50 @@ export function CookView(p: Props) {
         )}
       </section>
 
+      <section className="shop-at" aria-label="Einkaufen bei">
+        <span className="field-label">Einkaufen bei</span>
+        <div className="group-row tight">
+          {p.baseChains.map((c) => {
+            const on = p.activeChains.includes(c);
+            return (
+              <button
+                key={c}
+                className={`chip ${on ? 'on' : ''}`}
+                aria-pressed={on}
+                onClick={() => p.setActiveChains(on ? p.activeChains.filter((x) => x !== c) : [...p.activeChains, c])}
+              >
+                {shortChain(c)}
+              </button>
+            );
+          })}
+        </div>
+        {(combos.length > 0 || p.activeChains.length !== p.baseChains.length) && (
+          <div className="group-row tight">
+            {combos.map((c) => (
+              <span key={c.name} className={`combo ${activeCombo === c ? 'on' : ''}`}>
+                <button onClick={() => p.setActiveChains(c.chains.filter((x) => p.baseChains.includes(x)))}>{c.name}</button>
+                <button aria-label={`Kombi ${c.name} löschen`} onClick={() => set({ combos: combos.filter((x) => x !== c) })}>
+                  ✕
+                </button>
+              </span>
+            ))}
+            {!activeCombo && p.activeChains.length > 0 && p.activeChains.length < p.baseChains.length && (
+              <button
+                className="chip dashed"
+                onClick={() => set({ combos: [...combos, { name: p.activeChains.map(shortChain).join(' + '), chains: p.activeChains }] })}
+              >
+                + Als Kombi merken
+              </button>
+            )}
+            {p.activeChains.length !== p.baseChains.length && (
+              <button className="chip dashed" onClick={() => p.setActiveChains(p.baseChains)}>
+                Alle Märkte
+              </button>
+            )}
+          </div>
+        )}
+      </section>
+
       <section className="filters" aria-label="Was soll es geben?">
         <div className="segmented" role="radiogroup" aria-label="Ernährung">
           {DIETS.map((d) => (
@@ -168,14 +224,23 @@ export function CookView(p: Props) {
           maxLength={200}
         />
 
-        <button className="primary big" onClick={p.onGenerate} disabled={gen.loading}>
+        <label className="switch-row">
+          <input type="checkbox" checked={!!s.fast} onChange={(e) => set({ fast: e.target.checked })} />
+          <span>
+            <strong>Schnell-Modus</strong>
+            <span className="muted small"> · ca. 15 Sekunden, etwa ein Zehntel der Kosten, etwas einfachere Rezepte</span>
+          </span>
+        </label>
+        {(s.dislikes?.length ?? 0) > 0 && <p className="muted small dislike-note">Ohne: {s.dislikes.join(', ')}</p>}
+
+        <button className="primary big" onClick={p.onGenerate} disabled={gen.loading || p.activeChains.length === 0}>
           {gen.loading
             ? 'Rezepte werden gebaut …'
             : `${p.cart.length ? 'Rezepte aus dem Korb' : 'Rezepte'} für ${servings} Portion${servings > 1 ? 'en' : ''} bauen`}
         </button>
         {gen.loading && (
           <p className="loading-note" role="status">
-            Claude sucht die passenden Angebote und rechnet die Preise aus. Das dauert meist 30–70 Sekunden. ({elapsed} s)
+            Claude sucht die passenden Angebote und rechnet die Preise aus. Das dauert {s.fast ? 'etwa 10–20' : 'meist 30–70'} Sekunden. ({elapsed} s)
           </p>
         )}
         {gen.error && (
@@ -229,13 +294,43 @@ export function CookView(p: Props) {
                       <span className="total">Einkauf {euro(r.totalCost)}</span>
                     </div>
                   </button>
-                  <button className={`list-toggle ${onList ? 'on' : ''}`} onClick={() => p.onList(r)} aria-pressed={onList}>
-                    {onList ? '✓ Auf der Einkaufsliste' : '+ Auf die Einkaufsliste'}
-                  </button>
+                  <div className="recipe-actions">
+                    <button className={`list-toggle ${onList ? 'on' : ''}`} onClick={() => p.onList(r)} aria-pressed={onList}>
+                      {onList ? '✓ Liste' : '+ Liste'}
+                    </button>
+                    <button className={`list-toggle ${p.isSaved(r) ? 'on' : ''}`} onClick={() => p.onSave(r)} aria-pressed={p.isSaved(r)}>
+                      {p.isSaved(r) ? '♥ Gespeichert' : '♡ Speichern'}
+                    </button>
+                    <button className="list-toggle" onClick={() => p.onReplace(r.id)} disabled={!!p.replacing || gen.loading}>
+                      {p.replacing === r.id ? 'Tausche …' : '↻ Tauschen'}
+                    </button>
+                  </div>
                 </li>
               );
             })}
           </ul>
+        </section>
+      )}
+
+      {p.saved.length > 0 && (
+        <section className="saved" aria-label="Gespeicherte Rezepte">
+          <button className="section-title saved-toggle" onClick={() => setShowSaved((v) => !v)} aria-expanded={showSaved}>
+            {showSaved ? '▾' : '▸'} Gespeicherte Rezepte ({p.saved.length})
+          </button>
+          {showSaved && (
+            <ul className="recipe-list">
+              {p.saved.map((r) => (
+                <li key={r.id} className="saved-item">
+                  <button className="link" onClick={() => p.onOpen(r)}>
+                    {r.title}
+                  </button>
+                  <button className="icon-btn" onClick={() => p.onSave(r)} aria-label={`${r.title} nicht mehr speichern`}>
+                    ✕
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       )}
     </>

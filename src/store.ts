@@ -12,6 +12,12 @@ export interface Settings {
   diet: DietChoice;
   maxMinutes: number | null;
   cartMode: 'eins' | 'verteilen';
+  /** Zutaten, die nie in Rezepten vorkommen sollen */
+  dislikes: string[];
+  /** Gespeicherte Markt-Kombis, z. B. REWE + ALDI */
+  combos: { name: string; chains: string[] }[];
+  /** Schneller, günstiger Rezept-Modus */
+  fast: boolean;
 }
 
 /** Vorübergehende Auswahl unterwegs */
@@ -30,6 +36,9 @@ export const DEFAULT_SETTINGS: Settings = {
   diet: 'alles',
   maxMinutes: null,
   cartMode: 'verteilen',
+  dislikes: [],
+  combos: [],
+  fast: false,
 };
 
 function read<T>(key: string, fallback: T): T {
@@ -236,4 +245,17 @@ export function useStores(plz: string | null) {
       .catch(() => setStores([]));
   }, [plz]);
   return stores;
+}
+
+// ---------- Gespeicherte Rezepte ----------
+
+export function useSavedRecipes() {
+  const [saved, setSaved] = useState<Recipe[]>(() => readRaw<Recipe[]>('saved') ?? []);
+  useEffect(() => write('saved', saved), [saved]);
+  const toggle = useCallback(
+    (r: Recipe) => setSaved((s) => (s.some((x) => x.id === r.id) ? s.filter((x) => x.id !== r.id) : [r, ...s].slice(0, 60))),
+    [],
+  );
+  const isSaved = (r: Recipe) => saved.some((x) => x.id === r.id);
+  return { saved, toggle, isSaved };
 }

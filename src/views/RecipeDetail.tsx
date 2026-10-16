@@ -10,11 +10,19 @@ export function RecipeDetail({
   onBack,
   onList,
   onListNow,
+  saved,
+  onSave,
+  dislikes,
+  onDislike,
 }: {
   recipe: Recipe;
   onBack: () => void;
   onList: () => void;
   onListNow: boolean;
+  saved: boolean;
+  onSave: () => void;
+  dislikes: string[];
+  onDislike: (name: string) => void;
 }) {
   const ex = expiry(r);
   const [checked, setChecked] = useState<Set<string>>(new Set());
@@ -73,6 +81,9 @@ export function RecipeDetail({
         <button className={`list-toggle wide ${onListNow ? 'on' : ''}`} onClick={onList} aria-pressed={onListNow}>
           {onListNow ? '✓ Auf der Einkaufsliste' : '+ Auf die Einkaufsliste'}
         </button>
+        <button className={`list-toggle wide ${saved ? 'on' : ''}`} onClick={onSave} aria-pressed={saved}>
+          {saved ? '♥ Gespeichert' : '♡ Rezept speichern'}
+        </button>
       </div>
 
       <section className="card">
@@ -122,6 +133,21 @@ export function RecipeDetail({
             <li key={idx}>{s}</li>
           ))}
         </ol>
+      </section>
+
+      <section className="card">
+        <h2>Nicht dein Fall?</h2>
+        <p className="muted small">Tipp an, was du nicht magst – es kommt dann in keinem Rezept mehr vor. Ändern kannst du das unter Märkte.</p>
+        <div className="group-row tight wrap">
+          {[...new Set(r.ingredients.filter((i) => !i.pantry).map((i) => i.name))].map((name) => {
+            const on = dislikes.some((d) => d.toLowerCase() === name.toLowerCase());
+            return (
+              <button key={name} className={`chip ${on ? 'on dislike' : ''}`} aria-pressed={on} onClick={() => onDislike(name)}>
+                {on ? `✕ ${name}` : name}
+              </button>
+            );
+          })}
+        </div>
       </section>
 
       {(r.storage || r.tip) && (

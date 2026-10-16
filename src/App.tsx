@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Leaflet, Recipe, RecipeRequest, RecipesResponse } from '../shared/types';
-import { api, loadLastRecipes, LoginError, useCart, useOffers, useSettings, useShoppingList, useStores, useTrip, write } from './store';
+import { api, loadLastRecipes, LoginError, useCart, useOffers, useSavedRecipes, useSettings, useShoppingList, useStores, useTrip, write } from './store';
 import { shortChain } from './format';
 import { CookView, type GenState } from './views/Cook';
 import { ShoppingView } from './views/Shopping';
@@ -27,6 +27,8 @@ export default function App() {
 
   const offers = useOffers(plz || null, markets);
   const cart = useCart();
+  const saved = useSavedRecipes();
+  const [replacing, setReplacing] = useState<string | null>(null);
   const shopping = useShoppingList();
   const stores = useStores(plz || null);
   const [wishes, setWishes] = useState('');
@@ -59,9 +61,10 @@ export default function App() {
   const ready = !!plz && activeChains.length > 0;
 
   // Rezepte werden NUR hier gebaut – ausgelöst durch den Knopf im Kochen-Tab
-  const generate = useCallback(async () => {
-    if (!ready || gen.loading) return;
-    setGen({ loading: true, error: null, loginExpired: false, startedAt: Date.now() });
+  const generate = useCallback(async (replaceId?: string) => {
+    if (!ready || gen.loading || replacing) return;
+    if (replaceId) setReplacing(replaceId);
+    else setGen({ loading: true, error: null, loginExpired: false, startedAt: Date.now() });
     try {
       const body: RecipeRequest = {
         plz,
@@ -74,19 +77,39 @@ export default function App() {
         cart: cart.cart.map((o) => o.id),
         cartMode: settings.cartMode,
         wishes,
+        dislikes: settings.dislikes ?? [],
+        fast: settings.fast,
+        replace: replaceId ? { avoidTitles: (results?.recipes ?? []).map((r) => r.title) } : undefined,
       };
       const data = await api<RecipesResponse>('/api/recipes', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
       });
-      setResults(data);
-      write('lastRecipes', data);
+      let next = data;
+      if (replaceId && results && data.recipes[0]) {
+        // Nur das eine Rezept austauschen, Rest bleibt
+        const recipes = results.recipes.map((r) => (r.id === replaceId ? data.recipes[0] : r)).sort((a, b) => a.perPortion - b.perPortion);
+        next = { ...results, recipes };
+      }
+      setResults(next);
+      write('lastRecipes', next);
       setGen((g) => ({ ...g, loading: false }));
     } catch (e) {
       setGen((g) => ({ ...g, loading: false, error: e instanceof Error ? e.message : String(e), loginExpired: e instanceof LoginError }));
+    } finally {
+      setReplacing(null);
     }
-  }, [ready, gen.loading, plz, activeChains, markets, settings, cart.cart, wishes]);
+  }, [ready, gen.loading, replacing, plz, activeChains, markets, settings, cart.cart, wishes, results]);
+
+  const toggleDislike = useCallback(
+    (name: string) => {
+      const d = settings.dislikes ?? [];
+      const has = d.some((x) => x.toLowerCase() === name.toLowerCase());
+      updateSettings({ dislikes: has ? d.filter((x) => x.toLowerCase() !== name.toLowerCase()) : [...d, name] });
+    },
+    [settings.dislikes, updateSettings],
+  );
 
   const chainCounts = useMemo(() => {
     const m = new Map<string, number>();
@@ -98,7 +121,16 @@ export default function App() {
 
   if (detail)
     return (
-      <RecipeDetail recipe={detail} onBack={closeDetail} onList={() => shopping.toggleRecipe(detail)} onListNow={shopping.has(detail)} />
+      <RecipeDetail
+        recipe={detail}
+        onBack={closeDetail}
+        onList={() => shopping.toggleRecipe(detail)}
+        onListNow={shopping.has(detail)}
+        saved={saved.isSaved(detail)}
+        onSave={() => saved.toggle(detail)}
+        dislikes={settings.dislikes ?? []}
+        onDislike={toggleDislike}
+      />
     );
   if (leaflet)
     return (
@@ -164,7 +196,15 @@ export default function App() {
             wishes={wishes}
             setWishes={setWishes}
             gen={gen}
-            onGenerate={generate}
+            onGenerate={() => generate()}
+            onReplace={(id) => generate(id)}
+            replacing={replacing}
+            saved={saved.saved}
+            isSaved={saved.isSaved}
+            onSave={saved.toggle}
+            baseChains={baseChains}
+            activeChains={activeChains}
+            setActiveChains={(list) => setSkipToday(baseChains.filter((c) => !list.includes(c)))}
             results={results}
             onOpen={openDetail}
             onList={shopping.toggleRecipe}
@@ -217,6 +257,7 @@ export default function App() {
             }}
             onDone={() => setTab('kochen')}
             stores={stores}
+            onToggleDislike={toggleDislike}
           />
         )}
       </main>

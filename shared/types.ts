@@ -133,6 +133,12 @@ export interface RecipeRequest {
   /** eins = alles in ein Gericht, verteilen = auf mehrere Rezepte verteilen */
   cartMode?: 'eins' | 'verteilen';
   wishes?: string;
+  /** Zutaten, die nie vorkommen sollen */
+  dislikes?: string[];
+  /** Schneller, günstiger Modus (kleineres Modell) */
+  fast?: boolean;
+  /** Nur 1 Rezept als Ersatz bauen; diese Titel nicht wiederholen */
+  replace?: { avoidTitles: string[] };
 }
 
 export interface RecipeIngredient {

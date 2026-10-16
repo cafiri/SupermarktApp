@@ -40,15 +40,24 @@ const GROUP_PRIORITY: Record<string, number> = {
   brot: 8,
 };
 
+const fold = (t: string) => t.toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss');
+
+export function dislikedBy(req: RecipeRequest) {
+  const words = (req.dislikes ?? []).map((d) => fold(d.trim())).filter((d) => d.length >= 3);
+  return (o: Offer) => words.some((w) => fold(`${o.name} ${o.brand ?? ''}`).includes(w));
+}
+
 export function selectOffers(req: RecipeRequest, offers: Offer[], now = Date.now()): Offer[] {
   const chains = new Set(req.chains);
+  const disliked = dislikedBy(req);
   const soon = now + 3 * 86400_000;
   const list = offers.filter(
     (o) =>
       o.cooking &&
       (chains.size === 0 || chains.has(o.chain)) &&
       Date.parse(o.validFrom) <= soon &&
-      dietAllows(req.diet, o.diet),
+      dietAllows(req.diet, o.diet) &&
+      !disliked(o),
   );
   list.sort((a, b) => (GROUP_PRIORITY[a.group] ?? 9) - (GROUP_PRIORITY[b.group] ?? 9));
   const picked = list.slice(0, MAX_OFFERS);
@@ -166,7 +175,7 @@ function buildPrompt(req: RecipeRequest, offers: Offer[], cart: Offer[]): { syst
   ].join('\n');
 
   const lines: string[] = [];
-  lines.push(`Erstelle 5 Rezepte.`);
+  if (!req.replace) lines.push(`Erstelle 5 Rezepte.`);
   lines.push(`Ernährung: ${DIET_TEXT[req.diet] ?? DIET_TEXT.alles}`);
   lines.push(
     req.days > 1
@@ -192,6 +201,11 @@ function buildPrompt(req: RecipeRequest, offers: Offer[], cart: Offer[]): { syst
     lines.push('Ergänze günstige, passende Angebote aus der Liste – bevorzugt aus denselben Märkten wie der Korb.');
   }
   if (req.wishes?.trim()) lines.push(`WICHTIG – Wunsch, der für jedes Rezept gilt: ${req.wishes.trim().slice(0, 300)}`);
+  const dislikes = (req.dislikes ?? []).map((d) => d.trim()).filter(Boolean).slice(0, 40);
+  if (dislikes.length) lines.push(`Der Nutzer mag NICHT – diese Zutaten niemals verwenden, auch nicht als Beilage: ${dislikes.join(', ')}.`);
+  if (req.replace) {
+    lines.push(`Erstelle nur 1 Rezept als Ersatz. Es soll sich deutlich von diesen unterscheiden: ${req.replace.avoidTitles.slice(0, 10).join('; ')}.`);
+  }
   lines.push('');
   lines.push('Aktuelle Angebote (ID | Markt | Produkt | Packung | Preis | Gruppe | Ernährung | Hinweis):');
   for (const o of offers) lines.push(offerLine(o));
@@ -305,7 +319,7 @@ export async function generateRecipes(req: RecipeRequest, allOffers: Offer[], en
   const ids = cartIds(r);
   const cart = ids.map((id) => allOffers.find((o) => o.id === id)).filter((o): o is Offer => !!o);
   const { system, user } = buildPrompt(r, offers, cart);
-  const model = env.MODEL || DEFAULT_MODEL;
+  const model = r.fast ? env.FAST_MODEL || 'claude-haiku-5-5' : env.MODEL || DEFAULT_MODEL;
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',

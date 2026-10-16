@@ -10,6 +10,41 @@ interface Health {
   recipesPerDay: number;
 }
 
+/** Liste der Zutaten, die nie vorkommen sollen – einsehbar und änderbar */
+function Dislikes({ list, toggle }: { list: string[]; toggle: (n: string) => void }) {
+  const [input, setInput] = useState('');
+  return (
+    <section className="card">
+      <h2>Mag ich nicht</h2>
+      <p className="muted small">Diese Zutaten kommen in keinem Rezept vor.</p>
+      <form
+        className="watch-add"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (input.trim().length >= 3) toggle(input.trim());
+          setInput('');
+        }}
+      >
+        <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="z. B. Kürbis, Pilze" aria-label="Zutat, die du nicht magst" />
+        <button type="submit" className="secondary" disabled={input.trim().length < 3}>
+          Hinzufügen
+        </button>
+      </form>
+      {list.length === 0 ? (
+        <p className="muted small">Noch nichts eingetragen.</p>
+      ) : (
+        <div className="group-row tight wrap">
+          {list.map((d) => (
+            <button key={d} className="chip on dislike" onClick={() => toggle(d)} aria-label={`${d} wieder erlauben`}>
+              ✕ {d}
+            </button>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 const when = (iso: string) =>
   new Date(iso).toLocaleString('de-DE', { weekday: 'short', day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' });
 const day = (iso: string) => new Date(iso).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'numeric' });
@@ -85,6 +120,7 @@ interface Props {
   setTrip: (t: Trip | null) => void;
   onDone: () => void;
   stores: StoreInfo[];
+  onToggleDislike: (name: string) => void;
 }
 
 export function MarketsView(p: Props) {
@@ -123,6 +159,7 @@ export function MarketsView(p: Props) {
           )
         }
       />
+      <Dislikes list={p.settings.dislikes ?? []} toggle={p.onToggleDislike} />
       <ProspektInfo markets={p.trip?.markets ?? p.settings.markets ?? []} />
       <CostInfo />
       <AppInfo />

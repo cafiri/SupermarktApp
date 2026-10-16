@@ -1413,3 +1413,105 @@ h3 {
   border-radius: 0;
   background: none;
 }
+
+/* Einkaufen bei / Kombis */
+.shop-at {
+  padding: 0 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.group-row.tight {
+  padding: 0;
+  flex-wrap: wrap;
+  overflow: visible;
+}
+.group-row.wrap {
+  flex-wrap: wrap;
+}
+.chip.dashed {
+  border-style: dashed;
+  color: var(--basil);
+}
+.combo {
+  display: inline-flex;
+  border: 1.5px solid var(--basil);
+  border-radius: 999px;
+  overflow: hidden;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.combo button {
+  padding: 6px 10px;
+  color: var(--basil);
+}
+.combo button + button {
+  padding: 6px 9px 6px 4px;
+  opacity: 0.7;
+}
+.combo.on {
+  background: var(--basil);
+}
+.combo.on button {
+  color: #fff;
+}
+.switch-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+.switch-row input {
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  accent-color: var(--basil);
+  flex: none;
+}
+.dislike-note {
+  margin: -6px 0 0;
+}
+.chip.on.dislike {
+  background: var(--tomato);
+  border-color: var(--tomato);
+  color: #fff;
+}
+.recipe-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+}
+.recipe-actions .list-toggle {
+  border-radius: 0;
+  text-align: center;
+  padding: 9px 4px;
+}
+.recipe-actions .list-toggle:first-child {
+  border-bottom-left-radius: var(--r-md);
+}
+.recipe-actions .list-toggle:last-child {
+  border-bottom-right-radius: var(--r-md);
+}
+.recipe-actions .list-toggle + .list-toggle {
+  border-left: 0;
+}
+.detail-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.saved {
+  margin-top: 16px;
+}
+.saved-toggle {
+  display: block;
+  text-align: left;
+}
+.saved-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 4px;
+}
+.saved-item .link {
+  text-align: left;
+}
