@@ -1,0 +1,17 @@
+{
+  // Cloudflare Worker: API unter /api/*, alles andere ist die App aus ./dist
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "supermarkt-app",
+  "main": "worker/index.ts",
+  "compatibility_date": "2025-09-01",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "vars": {
+    "MODEL": "claude-sonnet-5-5"
+  },
+  "observability": { "enabled": true }
+}

@@ -1,0 +1,18 @@
+import { parseDeal, cleanDesc, detectDiet } from '../worker/normalize';
+const eq = (a: unknown, b: unknown, m: string) => { if (JSON.stringify(a) !== JSON.stringify(b)) { console.error('FAIL', m, a, b); process.exitCode = 1; } else console.log('ok', m); };
+eq(parseDeal('HINWEIS: MIT PENNY APP 4.79 € Zum Braten, je 500-g-Packung', 4.99), { appPrice: 4.79, note: 'Mit Penny App 4,79 €' }, 'penny');
+eq(parseDeal('HINWEIS: MIT APP 0,10 € REWE BONUS je 200-g-Becher', 0.99), { note: '0,10 € REWE Bonus mit App' }, 'rewe bonus');
+eq(parseDeal('HINWEIS: MIT KAUFLAND CARD XTRA 1.39€ halbfester Schnittkäse', 1.79), { appPrice: 1.39, note: 'Mit Kaufland Card Xtra 1,39 €' }, 'kaufland card');
+eq(parseDeal('HINWEIS: MIT KAUFLAND CARD XTRA Kichererbsen je 400-g-Dose Normalpreis = 2.29', 0.99), { note: 'Preis nur mit Kaufland Card Xtra', oldPrice: 2.29 }, 'kaufland plain');
+eq(parseDeal('HINWEIS: MIT LIDL PLUS APP 1.99 € Versch. Sorten', 2.19), { appPrice: 1.99, note: 'Mit Lidl Plus App 1,99 €' }, 'lidl plus');
+eq(parseDeal('Je 3 Stück. Normalpreis: 1.35', 0.9), { oldPrice: 1.35 }, 'normalpreis');
+eq(cleanDesc('HINWEIS: MIT PENNY APP 4.79 € Zum Braten, je 500-g-Packung'), 'Zum Braten, je 500-g-Packung', 'clean penny');
+eq(cleanDesc('HINWEIS: MIT APP 0,10 € REWE BONUS je 200-g-Becher'), 'je 200-g-Becher', 'clean rewe');
+eq(cleanDesc('HINWEIS: MIT KAUFLAND CARD XTRA 750 g Wonder Zimties Normalpreis = 2.79'), '750 g Wonder Zimties', 'clean kaufland');
+eq(detectDiet('Heringsdoppelfilet', 'Heringsdoppelfilet mariniertes Fleisch', [313], [103]), 'fisch', 'hering');
+eq(detectDiet('Kasseler Lachs', 'Kasseler Lachs Schinken', [219], [104]), 'fleisch', 'kasseler');
+eq(detectDiet('Fertiggericht', 'Fertiggericht Frosta Tiefkühlgerichte Rahm-Geschnetzeltes, Paprika-Sahne- Hähnchen', [354], [120]), 'fleisch', 'frosta');
+eq(detectDiet('Hühnereier', 'Hühnereier Eier', [324], [107]), 'vegetarisch', 'eier');
+eq(detectDiet('Pasta', 'Pasta Delverde Nudeln', [118], [16]), 'vegan', 'pasta');
+eq(detectDiet('Feinschmecker Sauce', 'Feinschmecker Sauce Knorr Soßen', [334], [112]), 'vegetarisch', 'sauce');
+eq(detectDiet('Broccoli', 'Broccoli Brokkoli und Kohl', [433], [147]), 'vegan', 'broccoli');

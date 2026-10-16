@@ -1,0 +1,309 @@
+{
+ "recipes": [
+  {
+   "id": "mvarm5uk-1",
+   "title": "Pasta mit Brokkoli-Frischkäse-Sauce",
+   "description": "Schnelle cremige Pasta, fertig in 20 Minuten.",
+   "minutes": 20,
+   "diet": "vegetarisch",
+   "servings": 2,
+   "ingredients": [
+    {
+     "name": "Pasta",
+     "quantity": "500 g",
+     "pantry": false,
+     "offer": {
+      "id": 1012,
+      "chain": "Lidl",
+      "name": "Pasta",
+      "brand": "Delverde",
+      "pack": "500 g",
+      "price": 0.99,
+      "packs": 1
+     },
+     "cost": 0.99,
+     "usedCost": 0.99
+    },
+    {
+     "name": "Brokkoli",
+     "quantity": "500 g",
+     "pantry": false,
+     "offer": {
+      "id": 1008,
+      "chain": "Kaufland",
+      "name": "Broccoli",
+      "pack": "500 g",
+      "price": 0.99,
+      "packs": 1
+     },
+     "cost": 0.99,
+     "usedCost": 0.99
+    },
+    {
+     "name": "Frischkäse",
+     "quantity": "200 g",
+     "pantry": false,
+     "offer": {
+      "id": 1015,
+      "chain": "REWE",
+      "name": "Buko Frischkäse der Sahnige",
+      "brand": "Arla",
+      "pack": "200 g",
+      "price": 0.99,
+      "packs": 1
+     },
+     "cost": 0.99,
+     "usedCost": 0.99
+    },
+    {
+     "name": "Zitrone",
+     "quantity": "1 Stück",
+     "pantry": false,
+     "offer": {
+      "id": 1018,
+      "chain": "Lidl",
+      "name": "Zitronen",
+      "pack": "500 g",
+      "price": 0.99,
+      "packs": 1
+     },
+     "cost": 0.99,
+     "usedCost": 0.2
+    },
+    {
+     "name": "Salz, Pfeffer",
+     "quantity": "",
+     "pantry": true,
+     "cost": 0,
+     "usedCost": 0
+    }
+   ],
+   "steps": [
+    "Pasta nach Packungsangabe kochen, 4 Minuten vor Ende die Brokkoliröschen mitgaren.",
+    "200 ml Kochwasser abnehmen, abgießen.",
+    "Frischkäse mit dem Kochwasser und etwas Zitronenabrieb verrühren, alles mischen."
+   ],
+   "storage": "Am besten frisch; Reste halten 2 Tage.",
+   "tip": "Mit gerösteten Kernen bestreuen.",
+   "chains": [
+    "Lidl",
+    "Kaufland",
+    "REWE"
+   ],
+   "offerCost": 3.96,
+   "estimatedCost": 0,
+   "totalCost": 3.96,
+   "usedCost": 3.17,
+   "perPortion": 1.59
+  },
+  {
+   "id": "mvarm5uk-2",
+   "title": "Ofenlachs mit Kichererbsen",
+   "description": "Lachs auf würzigen Kichererbsen und Tomaten aus dem Ofen.",
+   "minutes": 30,
+   "diet": "fisch",
+   "servings": 2,
+   "ingredients": [
+    {
+     "name": "Wildlachsfilets",
+     "quantity": "250 g",
+     "pantry": false,
+     "offer": {
+      "id": 1005,
+      "chain": "REWE",
+      "name": "Wildlachsfilets",
+      "brand": "ja!",
+      "pack": "250 g",
+      "price": 3.79,
+      "packs": 1
+     },
+     "cost": 3.79,
+     "usedCost": 3.79
+    },
+    {
+     "name": "Kichererbsen",
+     "quantity": "1 Dose",
+     "pantry": false,
+     "offer": {
+      "id": 1013,
+      "chain": "Kaufland",
+      "name": "Hülsenfrüchte",
+      "brand": "Krini",
+      "pack": "240 g",
+      "price": 0.99,
+      "packs": 1
+     },
+     "cost": 0.99,
+     "usedCost": 0.99
+    },
+    {
+     "name": "Tomaten",
+     "quantity": "250 g",
+     "pantry": false,
+     "offer": {
+      "id": 1009,
+      "chain": "Kaufland",
+      "name": "Romatomaten",
+      "pack": "500 g",
+      "price": 1.49,
+      "packs": 1
+     },
+     "cost": 1.49,
+     "usedCost": 0.75
+    },
+    {
+     "name": "Zitrone",
+     "quantity": "1 Stück",
+     "pantry": false,
+     "offer": {
+      "id": 1018,
+      "chain": "Lidl",
+      "name": "Zitronen",
+      "pack": "500 g",
+      "price": 0.99,
+      "packs": 1
+     },
+     "cost": 0.99,
+     "usedCost": 0.2
+    },
+    {
+     "name": "Kreuzkümmel, Öl, Salz",
+     "quantity": "",
+     "pantry": true,
+     "cost": 0,
+     "usedCost": 0
+    }
+   ],
+   "steps": [
+    "Ofen auf 200 °C vorheizen.",
+    "Kichererbsen abspülen, mit Tomaten, Öl und Gewürzen aufs Blech geben, 10 Minuten rösten.",
+    "Lachs dazulegen und 12 Minuten garen. Mit Zitrone beträufeln."
+   ],
+   "storage": "Frisch essen; Kichererbsen halten 2 Tage.",
+   "chains": [
+    "REWE",
+    "Kaufland",
+    "Lidl"
+   ],
+   "offerCost": 7.26,
+   "estimatedCost": 0,
+   "totalCost": 7.26,
+   "usedCost": 5.73,
+   "perPortion": 2.87
+  },
+  {
+   "id": "mvarm5uk-0",
+   "title": "Hack-Kürbis-Pfanne mit Feta",
+   "description": "Herbstliche Pfanne mit Butternut, Hackfleisch und Tomaten – lässt sich gut vorkochen.",
+   "minutes": 35,
+   "diet": "fleisch",
+   "servings": 2,
+   "ingredients": [
+    {
+     "name": "Gemischtes Hackfleisch",
+     "quantity": "400 g",
+     "pantry": false,
+     "offer": {
+      "id": 1001,
+      "chain": "Netto Marken-Discount",
+      "name": "Gemischt-Hackfleisch",
+      "brand": "Gut Ponholz",
+      "pack": "400 g",
+      "price": 2.99,
+      "packs": 1
+     },
+     "cost": 2.99,
+     "usedCost": 2.99
+    },
+    {
+     "name": "Butternut-Kürbis",
+     "quantity": "1 kg",
+     "pantry": false,
+     "offer": {
+      "id": 1007,
+      "chain": "Lidl",
+      "name": "Bio Speisekürbis Butternut",
+      "pack": "1 kg",
+      "price": 1.29,
+      "packs": 1
+     },
+     "cost": 1.29,
+     "usedCost": 1.29
+    },
+    {
+     "name": "Romatomaten",
+     "quantity": "500 g",
+     "pantry": false,
+     "offer": {
+      "id": 1009,
+      "chain": "Kaufland",
+      "name": "Romatomaten",
+      "pack": "500 g",
+      "price": 1.49,
+      "packs": 1
+     },
+     "cost": 1.49,
+     "usedCost": 1.49
+    },
+    {
+     "name": "Zwiebeln",
+     "quantity": "2 Stück",
+     "pantry": false,
+     "offer": {
+      "id": 1010,
+      "chain": "REWE",
+      "name": "Bio-Speisezwiebeln",
+      "brand": "Rewe Bio",
+      "pack": "750 g",
+      "price": 1.11,
+      "packs": 1
+     },
+     "cost": 1.11,
+     "usedCost": 0.33
+    },
+    {
+     "name": "Feta",
+     "quantity": "150 g",
+     "pantry": false,
+     "estimatedPrice": 1.29,
+     "cost": 1.29,
+     "usedCost": 0.97
+    },
+    {
+     "name": "Olivenöl",
+     "quantity": "2 EL",
+     "pantry": true,
+     "cost": 0,
+     "usedCost": 0
+    },
+    {
+     "name": "Paprikapulver, Salz, Pfeffer",
+     "quantity": "nach Geschmack",
+     "pantry": true,
+     "cost": 0,
+     "usedCost": 0
+    }
+   ],
+   "steps": [
+    "Kürbis schälen, entkernen und in 2 cm Würfel schneiden. Zwiebeln würfeln.",
+    "Hackfleisch in 2 EL Öl krümelig braten, Zwiebeln dazugeben.",
+    "Kürbis und geviertelte Tomaten zugeben, mit 100 ml Wasser 15 Minuten zugedeckt garen.",
+    "Würzen und mit zerbröseltem Feta servieren."
+   ],
+   "storage": "Hält 3 Tage im Kühlschrank, lässt sich ohne Feta gut einfrieren.",
+   "chains": [
+    "Netto Marken-Discount",
+    "Lidl",
+    "Kaufland",
+    "REWE"
+   ],
+   "offerCost": 6.88,
+   "estimatedCost": 1.29,
+   "totalCost": 8.17,
+   "usedCost": 7.07,
+   "perPortion": 3.54
+  }
+ ],
+ "model": "mock",
+ "offerCount": 21
+}
