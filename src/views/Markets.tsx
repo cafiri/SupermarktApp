@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ChainInfo, ProspektStatus, StoreInfo } from '../../shared/types';
 import { api, fetchOffers, type Settings, type Trip } from '../store';
+import { AppInfo } from './AppInfo';
 
 interface Health {
   monthCostUsd: number;
@@ -124,6 +125,7 @@ export function MarketsView(p: Props) {
       />
       <ProspektInfo markets={p.trip?.markets ?? p.settings.markets ?? []} />
       <CostInfo />
+      <AppInfo />
       <p className="muted pad small">
         Ketten wie Lidl oder REWE haben in der ganzen Region dieselben Angebote. Bei EDEKA und nah & gut gilt der Prospekt des
         einzelnen Markts – den liest die App einmal pro Woche ein.

@@ -2,6 +2,32 @@ import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import { readFileSync } from 'node:fs';
+import { execSync } from 'node:child_process';
+
+// Versionskennung: Zeitpunkt des Builds + Git-Commit (bei Cloudflare aus WORKERS_CI_COMMIT_SHA)
+function gitSha(): string {
+  const ci = process.env.WORKERS_CI_COMMIT_SHA;
+  if (ci) return ci.slice(0, 7);
+  try {
+    return execSync('git rev-parse --short HEAD').toString().trim();
+  } catch {
+    return 'lokal';
+  }
+}
+const BUILD = {
+  sha: gitSha(),
+  builtAt: new Date().toISOString(),
+};
+
+// Legt dist/version.json an – die App vergleicht ihre eigene Version damit
+function versionFile(): Plugin {
+  return {
+    name: 'version-file',
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify(BUILD) });
+    },
+  };
+}
 
 // MOCK_API=1 npm run dev → App läuft lokal mit Beispieldaten, ohne Backend und ohne API-Key
 function mockApi(): Plugin {
@@ -26,6 +52,7 @@ function mockApi(): Plugin {
         if (req.url.startsWith('/api/recipes')) {
           return send(JSON.parse(readFileSync('test/fixture-recipes.json', 'utf8')), 1500);
         }
+        if (req.url.startsWith('/version.json')) return send(BUILD, 0);
         if (req.url.startsWith('/api/health')) return send({ ok: true, hasKey: false, model: 'mock', monthCostUsd: 0.42, budgetUsd: 8, recipesToday: 2, recipesPerDay: 15 });
         if (req.url.startsWith('/api/deals')) {
           return send({ weeksOfHistory: 0, deals: [{ offerId: 1008, reasons: ['−45 % reduziert'], score: 50 }, { offerId: 1001, reasons: ['günstigster Hackfleisch-Preis diese Woche'], score: 30 }] });
@@ -53,8 +80,12 @@ function mockApi(): Plugin {
 }
 
 export default defineConfig({
+  define: {
+    __BUILD__: JSON.stringify(BUILD),
+  },
   plugins: [
     react(),
+    versionFile(),
     process.env.MOCK_API ? mockApi() : null,
     VitePWA({
       registerType: 'autoUpdate',

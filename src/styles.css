@@ -1311,6 +1311,28 @@ h3 {
   margin: 6px 0;
 }
 
+.app-info p {
+  margin: 4px 0;
+}
+.app-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0;
+}
+.danger {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.danger-link {
+  color: var(--tomato);
+}
+.danger-btn {
+  background: var(--tomato);
+  color: #fff;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;

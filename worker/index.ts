@@ -351,6 +351,14 @@ export default {
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
 
     try {
+      // Löscht alle Daten dieser Website im Browser (Cookies, Speicher, Cache) und lädt die App neu
+      if (url.pathname === '/api/clear') {
+        return new Response(
+          '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="1;url=/"><p style="font-family:sans-serif">Daten gelöscht – die App startet neu …</p>',
+          { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'clear-site-data': '"cache", "cookies", "storage"' } },
+        );
+      }
+
       // Nach der Cloudflare-Anmeldung zurück in die App
       if (url.pathname === '/api/login') return Response.redirect(new URL('/', url).toString(), 302);
 
