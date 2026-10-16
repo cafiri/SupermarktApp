@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { Offer, Recipe, RecipesResponse } from '../shared/types';
+import type { Leaflet, Offer, Recipe, RecipesResponse } from '../shared/types';
 import { loadLastRecipes, useOffers, useSettings, useTrip, write } from './store';
 import { shortChain } from './format';
 import { CookView } from './views/Cook';
 import { OffersView } from './views/Offers';
 import { MarketsView } from './views/Markets';
 import { RecipeDetail } from './views/RecipeDetail';
+import { LeafletView } from './views/LeafletView';
 
 type Tab = 'kochen' | 'angebote' | 'maerkte';
 
@@ -17,19 +18,24 @@ export default function App() {
   // Aktive PLZ und Märkte: unterwegs die Reiseauswahl, sonst die Standard-Märkte
   const plz = trip?.plz ?? settings.plz;
   const baseChains = trip?.chains ?? settings.chains;
+  const markets = trip?.markets ?? settings.markets ?? [];
   // Heute abgewählte Märkte (nur für diese Sitzung)
   const [skipToday, setSkipToday] = useState<string[]>([]);
   const activeChains = baseChains.filter((c) => !skipToday.includes(c));
 
-  const offers = useOffers(plz || null);
+  const offers = useOffers(plz || null, markets);
   const [focus, setFocus] = useState<Offer | null>(null);
   const [results, setResults] = useState<RecipesResponse | null>(() => loadLastRecipes());
   const [autoRun, setAutoRun] = useState(0);
   const [detail, setDetail] = useState<Recipe | null>(null);
+  const [leaflet, setLeaflet] = useState<{ chain: string; leaflets: Leaflet[] } | null>(null);
 
-  // Android-Zurück-Taste schließt die Rezeptansicht
+  // Android-Zurück-Taste schließt Rezept- und Prospektansicht
   useEffect(() => {
-    const onPop = () => setDetail(null);
+    const onPop = () => {
+      setDetail(null);
+      setLeaflet(null);
+    };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
@@ -39,6 +45,11 @@ export default function App() {
     window.scrollTo(0, 0);
   }, []);
   const closeDetail = useCallback(() => history.back(), []);
+  const openLeaflet = useCallback((chain: string, leaflets: Leaflet[]) => {
+    history.pushState({ leaflet: chain }, '');
+    setLeaflet({ chain, leaflets });
+    window.scrollTo(0, 0);
+  }, []);
 
   const onResults = useCallback((r: RecipesResponse) => {
     setResults(r);
@@ -46,6 +57,7 @@ export default function App() {
   }, []);
 
   const cookWith = useCallback((o: Offer) => {
+    if (leaflet) history.back();
     setFocus(o);
     setTab('kochen');
     setAutoRun((n) => n + 1);
@@ -59,6 +71,16 @@ export default function App() {
   }, [offers.data]);
 
   if (detail) return <RecipeDetail recipe={detail} onBack={closeDetail} />;
+  if (leaflet)
+    return (
+      <LeafletView
+        chain={leaflet.chain}
+        leaflets={leaflet.leaflets}
+        offers={(offers.data?.offers ?? []).filter((o) => o.chain === leaflet.chain)}
+        onBack={closeDetail}
+        onCook={cookWith}
+      />
+    );
 
   return (
     <div className="app">
@@ -103,6 +125,7 @@ export default function App() {
             updateSettings={updateSettings}
             plz={plz}
             chains={activeChains}
+            markets={markets}
             focus={focus}
             clearFocus={() => setFocus(null)}
             results={results}
@@ -121,6 +144,10 @@ export default function App() {
             error={offers.error}
             onReload={offers.reload}
             fetchedAt={offers.data?.fetchedAt}
+            notes={offers.data?.notes ?? []}
+            plz={plz}
+            markets={markets}
+            onOpenLeaflet={openLeaflet}
             onCook={cookWith}
             hasPlz={!!plz}
             goToMarkets={() => setTab('maerkte')}

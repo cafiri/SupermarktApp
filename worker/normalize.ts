@@ -17,6 +17,7 @@ export interface RawOffer {
   unit?: { shortName?: string | null } | null;
   brand?: { name?: string | null } | null;
   categories?: { id: number; name: string; parentId: number | null }[];
+  leafletFlightId?: number | null;
 }
 
 // Oberkategorien (parentId bei marktguru) → App-Gruppe
@@ -231,6 +232,7 @@ export function normalizeOffer(raw: RawOffer, now = Date.now()): Offer | null {
     validFrom: validity.from,
     validTo: validity.to,
     image: `https://mg2de.b-cdn.net/api/v1/offers/${raw.id}/images/default/0/small.jpg`,
+    flight: raw.leafletFlightId ?? undefined,
   };
 }
 

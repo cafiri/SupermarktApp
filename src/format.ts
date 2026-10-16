@@ -19,7 +19,8 @@ export const DIET_SHORT: Record<Diet, string> = {
 };
 
 /** Kurzer Kettenname für enge Stellen */
-export const shortChain = (c: string) => c.replace('Netto Marken-Discount', 'Netto').replace('PENNY', 'Penny');
+export const shortChain = (c: string) =>
+  c.replace('Netto Marken-Discount', 'Netto').replace('PENNY', 'Penny').replace(/^nah\s*(&|und)\s*gut/i, 'nah & gut');
 
 const DAY = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
 

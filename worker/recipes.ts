@@ -234,6 +234,8 @@ export function priceRecipe(raw: RawRecipe, byId: Map<number, Offer>, servings: 
           price: o.price,
           appPrice: o.appPrice,
           packs,
+          image: o.image || undefined,
+          page: o.page,
         },
         cost: r2(packs * o.price),
         usedCost: r2(packs * o.price * frac),

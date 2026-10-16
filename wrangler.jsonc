@@ -10,8 +10,15 @@
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*"]
   },
+  // Zwischenspeicher für Angebote, eingelesene Prospekte und das Tageslimit.
+  // Ohne "id" legt Cloudflare den Speicher beim ersten Deploy automatisch an.
+  "kv_namespaces": [{ "binding": "CACHE" }],
+  // Alle 30 Minuten prüfen, ob es neue EDEKA-Prospekte zum Einlesen gibt
+  "triggers": { "crons": ["*/30 * * * *"] },
   "vars": {
-    "MODEL": "claude-sonnet-5-5"
+    "MODEL": "claude-sonnet-5-5",
+    "EXTRACT_MODEL": "claude-sonnet-5-5",
+    "DAILY_RECIPE_LIMIT": "40"
   },
   "observability": { "enabled": true }
 }

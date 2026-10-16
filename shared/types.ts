@@ -60,23 +60,56 @@ export interface Offer {
   validFrom: string;
   validTo: string;
   image: string;
+  /** marktguru: Prospekt-Ausgabe, aus der das Angebot stammt */
+  flight?: number;
+  /** Seite im Prospekt (1-basiert), falls bekannt */
+  page?: number;
+}
+
+/** Ein Prospekt zum Durchblättern */
+export interface Leaflet {
+  id: string;
+  chain: string;
+  validFrom: string;
+  validTo: string;
+  /** Seitenbilder in mittlerer Größe (für die Liste) */
+  pages: string[];
+  /** Seitenbilder groß (zum Zoomen) */
+  pagesLarge: string[];
+}
+
+export interface LeafletsResponse {
+  leaflets: Leaflet[];
+  errors?: string[];
 }
 
 export interface ChainInfo {
   name: string;
   count: number;
+  /** kette = Angebote gelten für die Region; markt = einzelner Markt (EDEKA, nah & gut …) */
+  kind?: 'kette' | 'markt';
+  marketId?: number;
+  marketNo?: string;
+  address?: string;
+  note?: string;
 }
 
 export interface OffersResponse {
   plz: string;
   fetchedAt: string;
   chains: ChainInfo[];
+  /** EDEKA-Märkte in der Nähe (einzeln wählbar) */
+  nearby?: ChainInfo[];
   offers: Offer[];
+  notes?: string[];
+  errors?: string[];
 }
 
 export interface RecipeRequest {
   plz: string;
   chains: string[];
+  /** IDs der gewählten EDEKA-Märkte */
+  markets?: number[];
   diet: DietChoice;
   persons: number;
   days: number;
@@ -98,6 +131,8 @@ export interface RecipeIngredient {
     price: number;
     appPrice?: number;
     packs: number;
+    image?: string;
+    page?: number;
   };
   estimatedPrice?: number;
   /** Einkaufskosten dieser Zutat (Angebot: Packungen × Preis, sonst Schätzung) */

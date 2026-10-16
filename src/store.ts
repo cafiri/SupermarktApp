@@ -3,8 +3,10 @@ import type { DietChoice, OffersResponse, RecipesResponse } from '../shared/type
 
 export interface Settings {
   plz: string;
-  /** Standard-Märkte (Ketten) zu Hause */
+  /** Standard-Märkte zu Hause (Kettennamen bzw. Marktnamen) */
   chains: string[];
+  /** IDs der gewählten EDEKA-Märkte */
+  markets: number[];
   persons: number;
   days: number;
   diet: DietChoice;
@@ -15,11 +17,13 @@ export interface Settings {
 export interface Trip {
   plz: string;
   chains: string[];
+  markets: number[];
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   plz: '',
   chains: [],
+  markets: [],
   persons: 1,
   days: 1,
   diet: 'alles',
@@ -61,7 +65,10 @@ export function useSettings() {
 }
 
 export function useTrip() {
-  const [trip, setTrip] = useState<Trip | null>(() => readRaw<Trip>('trip'));
+  const [trip, setTrip] = useState<Trip | null>(() => {
+    const t = readRaw<Trip>('trip');
+    return t ? { ...t, markets: t.markets ?? [] } : null;
+  });
   useEffect(() => write('trip', trip), [trip]);
   return [trip, setTrip] as const;
 }
@@ -70,23 +77,56 @@ export function loadLastRecipes(): RecipesResponse | null {
   return readRaw<RecipesResponse>('lastRecipes');
 }
 
-const OFFER_MAX_AGE = 6 * 3600_000;
+const OFFER_MAX_AGE = 3 * 3600_000;
 
-export async function fetchOffers(plz: string, force = false): Promise<OffersResponse> {
-  const key = `offers:${plz}`;
+/** Fehler, wenn die Cloudflare-Anmeldung abgelaufen ist */
+export class LoginError extends Error {
+  constructor() {
+    super('Deine Anmeldung ist abgelaufen. Lade die App neu, um dich wieder anzumelden.');
+  }
+}
+
+/** fetch für die eigene API: erkennt die Login-Seite von Cloudflare Access */
+export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(path, { ...init, redirect: 'manual' });
+  } catch {
+    throw new Error('Keine Verbindung. Bist du online?');
+  }
+  if (res.type === 'opaqueredirect' || res.status === 401 || res.status === 403) {
+    const ct = res.headers.get('content-type') ?? '';
+    if (!ct.includes('application/json')) throw new LoginError();
+  }
+  const ct = res.headers.get('content-type') ?? '';
+  if (!ct.includes('application/json')) throw new LoginError();
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? `Fehler ${res.status}`);
+  return data as T;
+}
+
+export async function fetchOffers(plz: string, markets: number[] = [], force = false): Promise<OffersResponse> {
+  const key = `offers:${plz}:${markets.join(',')}`;
   if (!force) {
     const cached = readRaw<OffersResponse>(key);
     if (cached && Date.now() - Date.parse(cached.fetchedAt) < OFFER_MAX_AGE) return cached;
   }
-  const res = await fetch(`/api/offers?plz=${plz}${force ? '&refresh=1' : ''}`);
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error ?? `Fehler ${res.status}`);
+  const data = await api<OffersResponse>(`/api/offers?plz=${plz}&markets=${markets.join(',')}${force ? '&refresh=1' : ''}`);
+  // Nur einen Satz Angebote aufheben, damit der Speicher nicht volläuft
+  try {
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith('offers:') && k !== key)
+      .forEach((k) => localStorage.removeItem(k));
+  } catch {
+    /* egal */
+  }
   write(key, data);
-  return data as OffersResponse;
+  return data;
 }
 
-/** Lädt die Angebote für eine PLZ und hält sie im State */
-export function useOffers(plz: string | null) {
+/** Lädt die Angebote für eine PLZ (+ gewählte EDEKA-Märkte) und hält sie im State */
+export function useOffers(plz: string | null, markets: number[] = []) {
+  const marketKey = markets.join(',');
   const [data, setData] = useState<OffersResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -97,14 +137,14 @@ export function useOffers(plz: string | null) {
       setLoading(true);
       setError(null);
       try {
-        setData(await fetchOffers(plz, force));
+        setData(await fetchOffers(plz, marketKey ? marketKey.split(',').map(Number) : [], force));
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
       } finally {
         setLoading(false);
       }
     },
-    [plz],
+    [plz, marketKey],
   );
 
   useEffect(() => {

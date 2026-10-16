@@ -28,3 +28,11 @@ const rec = priceRecipe(
   ] },
   new Map([[7, offer]]), 2, 0);
 eq([rec.totalCost, rec.usedCost, rec.perPortion, rec.chains], [1.29, 0.52, 0.26, ['Lidl']], 'name fallback');
+
+// Gruppen/Ernährung für Märkte ohne Kategorien
+import { dietFor, guessGroup } from '../worker/aldi';
+eq(dietFor(guessGroup('Hähnchenbrustfilet-Teilstücke XXL Frisch; zum Braten', 'vorrat'), 'Hähnchenbrustfilet-Teilstücke XXL', 'x'), 'fleisch', 'aldi haehnchen');
+eq(guessGroup('Superberliner', 'vorrat'), 'vorrat', 'berliner group');
+eq(guessGroup('Home Barista Forte', 'vorrat'), 'getraenke', 'barista');
+eq(guessGroup('Lachsfiletportionen Frisch; aus Norwegen', 'vorrat'), 'fisch', 'lachs');
+eq(guessGroup('Weihenstephan Tafelbutter oder Die Streichzarte versch. Sorten, 250g', 'vorrat'), 'milch', 'butter');

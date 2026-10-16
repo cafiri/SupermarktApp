@@ -23,6 +23,7 @@ function mockApi(): Plugin {
           return send(JSON.parse(readFileSync('test/fixture-recipes.json', 'utf8')), 1500);
         }
         if (req.url.startsWith('/api/health')) return send({ ok: true, hasKey: false, model: 'mock' });
+        if (req.url.startsWith('/api/leaflets')) return send({ leaflets: [] });
         next();
       });
     },
@@ -55,6 +56,11 @@ export default defineConfig({
       workbox: {
         navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
+          {
+            urlPattern: ({ url }) => url.hostname === 'cdn.marktguru.de' || url.pathname.startsWith('/api/img'),
+            handler: 'CacheFirst',
+            options: { cacheName: 'prospektseiten', expiration: { maxEntries: 300, maxAgeSeconds: 7 * 86400 } },
+          },
           {
             urlPattern: ({ url }) => url.hostname === 'mg2de.b-cdn.net',
             handler: 'CacheFirst',

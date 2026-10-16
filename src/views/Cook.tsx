@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { DietChoice, Offer, Recipe, RecipeRequest, RecipesResponse } from '../../shared/types';
-import type { Settings } from '../store';
+import { api, LoginError, type Settings } from '../store';
 import { DIET_LABEL, DIET_SHORT, euro, shortChain } from '../format';
 import { PriceTag } from './PriceTag';
 
@@ -12,6 +12,7 @@ interface Props {
   updateSettings: (p: Partial<Settings>) => void;
   plz: string;
   chains: string[];
+  markets: number[];
   focus: Offer | null;
   clearFocus: () => void;
   results: RecipesResponse | null;
@@ -28,6 +29,7 @@ export function CookView(p: Props) {
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [wishes, setWishes] = useState('');
+  const [loginExpired, setLoginExpired] = useState(false);
   const timer = useRef<number>();
 
   async function generate() {
@@ -41,6 +43,7 @@ export function CookView(p: Props) {
       const body: RecipeRequest = {
         plz: p.plz,
         chains: p.chains,
+        markets: p.markets,
         diet: s.diet,
         persons: s.persons,
         days: s.days,
@@ -48,16 +51,15 @@ export function CookView(p: Props) {
         focusOfferId: p.focus?.id ?? null,
         wishes,
       };
-      const res = await fetch('/api/recipes', {
+      const data = await api<RecipesResponse>('/api/recipes', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const data = await res.json().catch(() => ({ error: `Fehler ${res.status}` }));
-      if (!res.ok) throw new Error(data.error ?? `Fehler ${res.status}`);
-      p.onResults(data as RecipesResponse);
+      p.onResults(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      setLoginExpired(e instanceof LoginError);
     } finally {
       window.clearInterval(timer.current);
       setLoading(false);
@@ -149,7 +151,12 @@ export function CookView(p: Props) {
         )}
         {error && (
           <p className="error" role="alert">
-            {error}
+            {error}{' '}
+            {loginExpired && (
+              <a className="link" href="/api/login">
+                Neu anmelden
+              </a>
+            )}
           </p>
         )}
       </section>

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Recipe, RecipeIngredient } from '../../shared/types';
 import { DIET_SHORT, euro, shortChain } from '../format';
 import { PriceTag } from './PriceTag';
+import { OfferThumb } from './OfferRow';
 
 export function RecipeDetail({ recipe: r, onBack }: { recipe: Recipe; onBack: () => void }) {
   const [checked, setChecked] = useState<Set<string>>(new Set());
@@ -113,6 +114,7 @@ function ShopItem({ i, checked, onToggle }: { i: RecipeIngredient; checked: bool
     <li className={`shop-item ${checked ? 'done' : ''}`}>
       <label>
         <input type="checkbox" checked={checked} onChange={onToggle} />
+        {i.offer && <OfferThumb src={i.offer.image} size={44} />}
         <span className="shop-text">
           <span className="shop-name">
             {i.offer ? (
@@ -126,7 +128,9 @@ function ShopItem({ i, checked, onToggle }: { i: RecipeIngredient; checked: bool
             )}
           </span>
           <span className="shop-sub">
-            {i.offer ? `${i.offer.pack ?? ''} · für ${i.name}: ${i.quantity}` : i.quantity}
+            {i.offer
+              ? [i.offer.pack, i.offer.page ? `Prospekt S. ${i.offer.page}` : null, `für ${i.name}: ${i.quantity}`].filter(Boolean).join(' · ')
+              : i.quantity}
           </span>
         </span>
         <span className="shop-price">

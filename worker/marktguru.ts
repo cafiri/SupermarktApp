@@ -71,3 +71,23 @@ export async function fetchRawOffers(plz: string): Promise<RawOffer[]> {
   );
   return all;
 }
+
+export interface MgLeaflet {
+  id: number;
+  validFrom: string;
+  validTo: string;
+  advertiser?: { name: string };
+  pageImages?: { count: number };
+}
+
+/** Den passenden Prospekt (Seitenbilder) zu einer Prospekt-Ausgabe für die PLZ */
+export async function fetchBestLeaflet(flightId: number, plz: string): Promise<MgLeaflet | null> {
+  try {
+    return (await apiGet(`leafletflights/${flightId}/bestleaflet?as=mobiledetailed&zipCode=${encodeURIComponent(plz)}`)) as MgLeaflet;
+  } catch {
+    return null;
+  }
+}
+
+export const leafletPage = (id: number, page: number, size: 'medium' | 'large') =>
+  `https://cdn.marktguru.de/api/v1/leaflets/${id}/images/pages/${page}/${size}.webp`;

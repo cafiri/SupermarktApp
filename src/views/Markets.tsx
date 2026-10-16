@@ -16,12 +16,13 @@ export function MarketsView(p: Props) {
     <>
       <ChainPicker
         title="Zuhause"
-        hint="Wähle 3–4 Märkte, in denen du meistens einkaufst. Ihre Angebote siehst du immer."
+        hint="Wähle die Märkte, in denen du meistens einkaufst. Ihre Angebote siehst du immer."
         initialPlz={p.settings.plz}
         selected={p.settings.chains}
+        selectedMarkets={p.settings.markets ?? []}
         saveLabel="Märkte speichern"
-        onSave={(plz, chains) => {
-          p.updateSettings({ plz, chains });
+        onSave={(plz, chains, markets) => {
+          p.updateSettings({ plz, chains, markets });
           p.setTrip(null);
           p.onDone();
         }}
@@ -31,9 +32,10 @@ export function MarketsView(p: Props) {
         hint="Woanders einkaufen? Andere PLZ eingeben und Märkte wählen. Deine Märkte zuhause bleiben gespeichert."
         initialPlz={p.trip?.plz ?? ''}
         selected={p.trip?.chains ?? []}
+        selectedMarkets={p.trip?.markets ?? []}
         saveLabel="Unterwegs einkaufen"
-        onSave={(plz, chains) => {
-          p.setTrip({ plz, chains });
+        onSave={(plz, chains, markets) => {
+          p.setTrip({ plz, chains, markets });
           p.onDone();
         }}
         extra={
@@ -45,7 +47,8 @@ export function MarketsView(p: Props) {
         }
       />
       <p className="muted pad small">
-        Angebote gelten für die Region der PLZ. Aldi und Edeka sind noch nicht dabei.
+        Ketten wie Lidl oder REWE haben in der ganzen Region dieselben Angebote. Bei EDEKA und nah & gut gilt der Prospekt des
+        einzelnen Markts – den liest die App einmal pro Woche ein.
       </p>
     </>
   );
@@ -56,13 +59,16 @@ function ChainPicker(props: {
   hint: string;
   initialPlz: string;
   selected: string[];
+  selectedMarkets: number[];
   saveLabel: string;
-  onSave: (plz: string, chains: string[]) => void;
+  onSave: (plz: string, chains: string[], markets: number[]) => void;
   extra?: React.ReactNode;
 }) {
   const [plz, setPlz] = useState(props.initialPlz);
   const [chains, setChains] = useState<ChainInfo[] | null>(null);
+  const [nearby, setNearby] = useState<ChainInfo[]>([]);
   const [picked, setPicked] = useState<string[]>(props.selected);
+  const [pickedMarkets, setPickedMarkets] = useState<number[]>(props.selectedMarkets);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const valid = /^\d{5}$/.test(plz);
@@ -73,15 +79,43 @@ function ChainPicker(props: {
     setError(null);
     try {
       const d = await fetchOffers(plz);
-      setChains(d.chains);
-      if (!d.chains.length) setError('Für diese PLZ wurden keine Lebensmittel-Angebote gefunden.');
-      setPicked((prev) => prev.filter((c) => d.chains.some((x) => x.name === c)));
+      const ketten = d.chains.filter((c) => c.kind !== 'markt');
+      setChains(ketten);
+      setNearby(d.nearby ?? []);
+      if (!ketten.length && !d.nearby?.length) setError('Für diese PLZ wurden keine Märkte gefunden.');
+      const names = new Set([...ketten.map((c) => c.name), ...(d.nearby ?? []).map((c) => c.name)]);
+      setPicked((prev) => prev.filter((c) => names.has(c)));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
   }
+
+  const toggle = (c: ChainInfo) => {
+    const on = picked.includes(c.name);
+    setPicked((s) => (on ? s.filter((x) => x !== c.name) : [...s, c.name]));
+    if (c.marketId) {
+      const id = c.marketId;
+      setPickedMarkets((s) => (on ? s.filter((x) => x !== id) : [...s, id]));
+    }
+  };
+
+  const option = (c: ChainInfo) => {
+    const on = picked.includes(c.name);
+    return (
+      <li key={c.name}>
+        <label className={`chain-option ${on ? 'on' : ''}`}>
+          <input type="checkbox" checked={on} onChange={() => toggle(c)} />
+          <span className="chain-text">
+            <span className="chain-name">{shortChain(c.name)}</span>
+            {c.address && <span className="muted small">{c.address}</span>}
+          </span>
+          {c.kind !== 'markt' && <span className="muted">{c.count} Angebote</span>}
+        </label>
+      </li>
+    );
+  };
 
   return (
     <section className="card markets">
@@ -115,27 +149,21 @@ function ChainPicker(props: {
           {error}
         </p>
       )}
-      {chains && chains.length > 0 && (
+      {chains && (
         <>
-          <ul className="chain-list">
-            {chains.map((c) => {
-              const on = picked.includes(c.name);
-              return (
-                <li key={c.name}>
-                  <label className={`chain-option ${on ? 'on' : ''}`}>
-                    <input
-                      type="checkbox"
-                      checked={on}
-                      onChange={() => setPicked((s) => (on ? s.filter((x) => x !== c.name) : [...s, c.name]))}
-                    />
-                    <span className="chain-name">{shortChain(c.name)}</span>
-                    <span className="muted">{c.count} Angebote</span>
-                  </label>
-                </li>
-              );
-            })}
-          </ul>
-          <button className="primary" disabled={!picked.length} onClick={() => props.onSave(plz, picked)}>
+          {chains.length > 0 && (
+            <>
+              <h3 className="picker-head">Ketten in der Region</h3>
+              <ul className="chain-list">{chains.map(option)}</ul>
+            </>
+          )}
+          {nearby.length > 0 && (
+            <>
+              <h3 className="picker-head">EDEKA-Märkte in der Nähe</h3>
+              <ul className="chain-list">{nearby.map(option)}</ul>
+            </>
+          )}
+          <button className="primary" disabled={!picked.length} onClick={() => props.onSave(plz, picked, pickedMarkets)}>
             {props.saveLabel}
           </button>
         </>
