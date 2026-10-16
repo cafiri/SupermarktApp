@@ -4,8 +4,13 @@
 import type { ChainInfo, Diet, Group, Offer } from '../shared/types';
 import { dietFor, guessGroup } from './aldi';
 
-const UA = 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Mobile Safari/537.36';
-const H = { 'user-agent': UA, 'accept-language': 'de-DE,de;q=0.9' };
+// edeka.de lässt nur Anfragen mit vollständigen Browser-Kopfzeilen durch
+const H = {
+  'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36',
+  accept: 'text/html,application/json;q=0.9,*/*;q=0.8',
+  'accept-language': 'de-DE,de;q=0.9,en;q=0.8',
+  referer: 'https://www.edeka.de/',
+};
 const ID_BASE = 2_000_000_000_000;
 
 export interface EdekaMarket {
@@ -251,7 +256,7 @@ export async function proxyImage(u: string): Promise<Response> {
   if (!['blaetterkatalog.edeka.de', 'offer-images.api.edeka'].includes(url.hostname)) {
     return new Response('nicht erlaubt', { status: 400 });
   }
-  const res = await fetch(url.toString(), { headers: { ...H, referer: 'https://blaetterkatalog.edeka.de/' } });
+  const res = await fetch(url.toString(), { headers: { ...H, referer: 'https://blaetterkatalog.edeka.de/' }, cf: { cacheTtl: 604800, cacheEverything: true } } as RequestInit);
   if (!res.ok) return new Response('nicht gefunden', { status: res.status });
   return new Response(res.body, {
     headers: { 'content-type': res.headers.get('content-type') ?? 'image/jpeg', 'cache-control': 'public, max-age=604800, immutable' },
