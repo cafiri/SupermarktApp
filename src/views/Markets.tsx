@@ -207,6 +207,9 @@ function ChainPicker(props: {
       if (!ketten.length && !near.length) setError('Für diese PLZ wurden keine Märkte gefunden.');
       const names = new Set([...ketten.map((c) => c.name), ...near.map((c) => c.name)]);
       setPicked((prev) => prev.filter((c) => names.has(c)));
+      // Markt-IDs nur behalten, wenn der Markt auch angehakt ist
+      const idOf = new Map(near.map((c) => [c.marketId, c.name]));
+      setPickedMarkets((prev) => [...new Set(prev)].filter((id) => !idOf.has(id) || props.selected.includes(idOf.get(id)!)));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -225,7 +228,7 @@ function ChainPicker(props: {
     setPicked((s) => (on ? s.filter((x) => x !== c.name) : [...s, c.name]));
     if (c.marketId) {
       const id = c.marketId;
-      setPickedMarkets((s) => (on ? s.filter((x) => x !== id) : [...s, id]));
+      setPickedMarkets((s) => (on ? s.filter((x) => x !== id) : [...s.filter((x) => x !== id), id]));
     }
   };
 
@@ -291,7 +294,7 @@ function ChainPicker(props: {
               <ul className="chain-list">{nearby.map(option)}</ul>
             </>
           )}
-          <button className="primary" disabled={!picked.length} onClick={() => props.onSave(plz, picked, pickedMarkets)}>
+          <button className="primary" disabled={!picked.length} onClick={() => props.onSave(plz, [...new Set(picked)], [...new Set(pickedMarkets)])}>
             {props.saveLabel}
           </button>
         </>

@@ -69,16 +69,18 @@ export function write(key: string, value: unknown) {
 }
 
 export function useSettings() {
-  const [settings, setSettings] = useState<Settings>(() => read('settings', DEFAULT_SETTINGS));
+  // Doppelte Märkte (alte Fehler) beim Laden und Speichern bereinigen
+  const clean = (s: Settings): Settings => ({ ...s, chains: [...new Set(s.chains ?? [])], markets: [...new Set(s.markets ?? [])] });
+  const [settings, setSettings] = useState<Settings>(() => clean(read('settings', DEFAULT_SETTINGS)));
   useEffect(() => write('settings', settings), [settings]);
-  const update = useCallback((patch: Partial<Settings>) => setSettings((s) => ({ ...s, ...patch })), []);
+  const update = useCallback((patch: Partial<Settings>) => setSettings((s) => clean({ ...s, ...patch })), []);
   return [settings, update] as const;
 }
 
 export function useTrip() {
   const [trip, setTrip] = useState<Trip | null>(() => {
     const t = readRaw<Trip>('trip');
-    return t ? { ...t, markets: t.markets ?? [] } : null;
+    return t ? { ...t, chains: [...new Set(t.chains ?? [])], markets: [...new Set(t.markets ?? [])] } : null;
   });
   useEffect(() => write('trip', trip), [trip]);
   return [trip, setTrip] as const;

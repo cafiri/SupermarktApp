@@ -451,7 +451,7 @@ function json(data: unknown, status = 200): Response {
 }
 const error = (message: string, status = 500) => json({ error: message }, status);
 const validPlz = (p: string | null | undefined): p is string => !!p && /^\d{5}$/.test(p);
-const parseIds = (s: string | null) => (s ?? '').split(',').map(Number).filter((n) => Number.isFinite(n) && n > 0).slice(0, 6);
+const parseIds = (s: string | null) => [...new Set((s ?? '').split(',').map(Number).filter((n) => Number.isFinite(n) && n > 0))].slice(0, 6);
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
