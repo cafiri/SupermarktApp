@@ -1251,16 +1251,62 @@ h3 {
   min-width: 0;
 }
 .watch-group {
-  margin-bottom: 18px;
+  border-bottom: 1px solid var(--line);
+}
+.watch-group.open {
+  padding-bottom: 12px;
 }
 .watch-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
 }
-.watch-head h3 {
+.watch-toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.watch-caret {
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+.watch-group.open .watch-caret {
+  transform: rotate(90deg);
+}
+.watch-title {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.watch-term {
   font-family: var(--display);
-  font-size: 1.35rem;
+  font-size: 1.2rem;
+  line-height: 1.2;
+}
+.watch-sum {
+  font-size: 0.85rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.watch-sum.hit {
+  color: var(--basil);
+  font-weight: 700;
+}
+.watch-toggle-all {
+  margin: 4px 0 0;
+  text-align: right;
 }
 .watch-hit {
   margin: 0 0 8px;

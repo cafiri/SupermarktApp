@@ -98,10 +98,34 @@ export function WatchView(p: {
     }).catch((e) => ({ status: 0, error: String(e) }));
     setPushMsg(r.status >= 200 && r.status < 300 ? 'Test gesendet – die Nachricht sollte gleich kommen.' : `Test fehlgeschlagen (${r.status}).`);
   }
+  // Auf- und zugeklappte Einträge (zu Beginn alles zu, damit die Liste kurz bleibt)
+  const [openTerms, setOpenTermsRaw] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('watchOpen') ?? '[]');
+    } catch {
+      return [];
+    }
+  });
+  const setOpenTerms = (t: string[]) => {
+    setOpenTermsRaw(t);
+    try {
+      localStorage.setItem('watchOpen', JSON.stringify(t));
+    } catch {
+      /* egal */
+    }
+  };
+  const toggleOpen = (term: string) => setOpenTerms(openTerms.includes(term) ? openTerms.filter((x) => x !== term) : [...openTerms, term]);
+  const [showAll, setShowAll] = useState<string[]>([]);
+  // Treffer zuerst, dann der Rest – jeweils in der eingetragenen Reihenfolge
+  const withHits = p.terms.map((term) => ({ term, hits: matchWatch(term, p.offers) }));
+  const sorted = [...withHits.filter((x) => x.hits.length), ...withHits.filter((x) => !x.hits.length)];
+  const allOpen = p.terms.every((t) => openTerms.includes(t));
+
   const add = () => {
     const t = input.trim();
     if (t.length < 2 || p.terms.some((x) => x.toLowerCase() === t.toLowerCase())) return;
     save([...p.terms, t]);
+    setOpenTerms([...openTerms, t]);
     setInput('');
   };
 
@@ -149,29 +173,58 @@ export function WatchView(p: {
         </p>
       )}
 
-      {p.terms.map((term) => {
-        const hits = matchWatch(term, p.offers);
+      {p.terms.length > 1 && (
+        <p className="pad small watch-toggle-all">
+          <button className="link" onClick={() => setOpenTerms(allOpen ? [] : p.terms)}>
+            {allOpen ? 'Alle zuklappen' : 'Alle aufklappen'}
+          </button>
+        </p>
+      )}
+
+      {sorted.map(({ term, hits }) => {
         const chains = [...new Set(hits.map((o) => shortChain(o.chain)))];
+        const open = openTerms.includes(term);
+        const all = showAll.includes(term);
+        const id = `watch-${term.replace(/\W+/g, '-')}`;
         return (
-          <section key={term} className="watch-group">
+          <section key={term} className={`watch-group ${open ? 'open' : ''}`}>
             <div className="watch-head pad">
-              <h3>{term}</h3>
+              <button className="watch-toggle" aria-expanded={open} aria-controls={id} onClick={() => toggleOpen(term)}>
+                <span className="watch-caret" aria-hidden="true">
+                  ▸
+                </span>
+                <span className="watch-title">
+                  <span className="watch-term">{term}</span>
+                  <span className={`watch-sum ${hits.length ? 'hit' : ''}`}>
+                    {hits.length ? `${hits.length} im Angebot · ${chains.join(', ')}` : 'nichts im Angebot'}
+                  </span>
+                </span>
+              </button>
               <button className="icon-btn" onClick={() => save(p.terms.filter((x) => x !== term))} aria-label={`${term} von der Merkliste nehmen`}>
                 ✕
               </button>
             </div>
-            {hits.length ? (
-              <>
-                <p className="watch-hit pad">Im Angebot bei {chains.join(', ')}</p>
-                <ul className="offer-list">
-                  {hits.slice(0, 8).map((o) => (
-                    <OfferRow key={o.id} o={o} onToggleCart={p.onToggleCart} inCart={p.inCart.has(o.id)} />
-                  ))}
-                </ul>
-                {hits.length > 8 && <p className="muted pad small">und {hits.length - 8} weitere</p>}
-              </>
-            ) : (
-              <p className="muted pad watch-none">Diese Woche gibt es nichts.</p>
+            {open && (
+              <div id={id}>
+                {hits.length ? (
+                  <>
+                    <ul className="offer-list">
+                      {(all ? hits : hits.slice(0, 8)).map((o) => (
+                        <OfferRow key={o.id} o={o} onToggleCart={p.onToggleCart} inCart={p.inCart.has(o.id)} />
+                      ))}
+                    </ul>
+                    {hits.length > 8 && (
+                      <p className="pad small">
+                        <button className="link" onClick={() => setShowAll((s) => (all ? s.filter((x) => x !== term) : [...s, term]))}>
+                          {all ? 'Weniger zeigen' : `Alle ${hits.length} zeigen`}
+                        </button>
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className="muted pad watch-none">Diese Woche gibt es nichts.</p>
+                )}
+              </div>
             )}
           </section>
         );
