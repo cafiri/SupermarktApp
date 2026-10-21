@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ChainInfo, ProspektStatus, StoreInfo } from '../../shared/types';
-import { api, fetchOffers, type Settings, type Trip } from '../store';
+import { api, edekaNearbyFromDevice, fetchOffers, type Settings, type Trip } from '../store';
 import { AppInfo } from './AppInfo';
 
 interface Health {
@@ -192,12 +192,20 @@ function ChainPicker(props: {
     setLoading(true);
     setError(null);
     try {
-      const d = await fetchOffers(plz);
+      // Gewählte Märkte mitschicken, damit sie in der Liste bleiben
+      const own = plz === props.initialPlz ? props.selectedMarkets : [];
+      const d = await fetchOffers(plz, own);
       const ketten = d.chains.filter((c) => c.kind !== 'markt');
+      let near = d.nearby ?? [];
+      // Server findet keine EDEKA-Märkte (EDEKA blockt die Cloud): direkt vom Handy suchen
+      if (!near.some((c) => !own.includes(c.marketId ?? -1))) {
+        const found = await edekaNearbyFromDevice(plz).catch(() => [] as ChainInfo[]);
+        near = [...found, ...near.filter((c) => !found.some((f) => f.marketId === c.marketId))];
+      }
       setChains(ketten);
-      setNearby(d.nearby ?? []);
-      if (!ketten.length && !d.nearby?.length) setError('Für diese PLZ wurden keine Märkte gefunden.');
-      const names = new Set([...ketten.map((c) => c.name), ...(d.nearby ?? []).map((c) => c.name)]);
+      setNearby(near);
+      if (!ketten.length && !near.length) setError('Für diese PLZ wurden keine Märkte gefunden.');
+      const names = new Set([...ketten.map((c) => c.name), ...near.map((c) => c.name)]);
       setPicked((prev) => prev.filter((c) => names.has(c)));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

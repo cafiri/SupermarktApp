@@ -6,8 +6,11 @@ import { ALDI_NORD, fetchAldiNord } from './aldi';
 import {
   extractProspekt,
   fetchMarketOffers,
+  catalogPath,
   findProspekte,
   marketChainInfo,
+  parseMarkets,
+  probeProspekte,
   prospektPage,
   proxyImage,
   searchMarkets,
@@ -110,20 +113,42 @@ async function watchMarket(env: Env, m: EdekaMarket) {
 
 const centerOf = (env: Env, plz: string) => cached(env, `geo:${plz}`, 90 * 24 * HOUR, () => geocode(plz));
 
-async function nearbyMarkets(env: Env, plz: string): Promise<EdekaMarket[]> {
-  const list = await cached(env, `edeka:near2:${plz}`, 24 * HOUR, async () => {
-    const [found, c] = await Promise.all([searchMarkets(plz), centerOf(env, plz).catch(() => null)]);
-    if (!c) return found.slice(0, 6);
-    // Nur Märkte im Umkreis von 15 km, nächste zuerst
-    return found
-      .map((m) => ({ ...m, distanceKm: m.lat && m.lon ? Math.round(km(c.lat, c.lon, m.lat, m.lon) * 10) / 10 : undefined }))
-      .filter((m) => m.distanceKm == null || m.distanceKm <= 15)
-      .sort((a, b) => (a.distanceKm ?? 99) - (b.distanceKm ?? 99));
-  });
-  // Märkte merken, damit sie später über die ID gefunden werden
-  await Promise.all(list.map((m) => (env.CACHE ? kvPut(env, `edeka:m:${m.id}`, m, 90 * 86400) : null)));
+/** Nur Märkte im Umkreis von 15 km, nächste zuerst */
+async function nearestFirst(env: Env, plz: string, found: EdekaMarket[]): Promise<EdekaMarket[]> {
+  const c = await centerOf(env, plz).catch(() => null);
+  if (!c) return found.slice(0, 6);
+  return found
+    .map((m) => ({ ...m, distanceKm: m.lat && m.lon ? Math.round(km(c.lat, c.lon, m.lat, m.lon) * 10) / 10 : undefined }))
+    .filter((m) => m.distanceKm == null || m.distanceKm <= 15)
+    .sort((a, b) => (a.distanceKm ?? 99) - (b.distanceKm ?? 99));
+}
+
+/** Märkte merken, damit sie später über die ID gefunden werden – und als letzte gute Liste für die PLZ */
+async function rememberMarkets(env: Env, plz: string, list: EdekaMarket[]) {
+  if (!list.length) return;
+  await Promise.all([
+    ...list.map((m) => kvPut(env, `edeka:m:${m.id}`, m, 90 * 86400)),
+    kvPut(env, `edeka:nearlast:${plz}`, list),
+  ]);
   for (const m of list) memo.set(`edeka:m:${m.id}`, { at: Date.now(), data: m });
-  return list;
+}
+
+async function nearbyMarkets(env: Env, plz: string): Promise<EdekaMarket[]> {
+  try {
+    const list = await cached(env, `edeka:near2:${plz}`, 24 * HOUR, async () => {
+      const found = await nearestFirst(env, plz, await searchMarkets(plz));
+      // Leere Antwort nicht für 24 Stunden festschreiben
+      if (!found.length) throw new Error('EDEKA-Marktsuche lieferte keine Märkte');
+      return found;
+    });
+    await rememberMarkets(env, plz, list);
+    return list;
+  } catch (e) {
+    // EDEKA blockt oder ist down: letzte funktionierende Liste nehmen
+    const last = await kvGet<EdekaMarket[]>(env, `edeka:nearlast:${plz}`);
+    if (last?.length) return last;
+    throw e;
+  }
 }
 
 async function marketById(env: Env, id: number): Promise<EdekaMarket | null> {
@@ -174,7 +199,8 @@ export async function getOffers(env: Env, plz: string, marketIds: number[] = [],
     plz,
     fetchedAt: new Date().toISOString(),
     chains,
-    nearby: nearby.map((m) => marketChainInfo(m)),
+    // Gewählte Märkte immer mit anbieten, auch wenn die Suche sie gerade nicht liefert
+    nearby: [...nearby, ...markets.filter((m) => !nearby.some((n) => n.id === m.id))].map((m) => marketChainInfo(m)),
     offers,
     notes,
     errors,
@@ -278,7 +304,7 @@ async function getLeaflets(env: Env, plz: string, marketIds: number[]): Promise<
     const m = await marketById(env, id);
     if (!m) continue;
     try {
-      const ps = await cached(env, `edeka:prosp:${m.marketNo}`, 6 * HOUR, () => findProspekte(m));
+      const ps = await cached(env, `edeka:prosp:${m.marketNo}`, 6 * HOUR, () => prospekteOf(env, m));
       for (const p of ps) {
         if (!p.pageCount || Date.parse(p.validTo) < Date.now()) continue;
         leaflets.push({
@@ -307,11 +333,31 @@ const pdfKey = (k: string) => `edeka:pdf:${EXTRACT_VERSION}:${k}`;
 const errKey = (k: string) => `edeka:err:${EXTRACT_VERSION}:${k}`;
 const metaKey = (k: string) => `edeka:meta:${EXTRACT_VERSION}:${k}`;
 
+/**
+ * Prospekte eines Markts finden. Normal über edeka.de; blockt edeka.de die Cloud (403),
+ * direkt über die bekannte Blätterkatalog-Adresse des Markts.
+ */
+async function prospekteOf(env: Env, m: EdekaMarket): Promise<Prospekt[]> {
+  try {
+    const ps = await findProspekte(m);
+    if (ps.length) await kvPut(env, `edeka:kat:${m.marketNo}`, [...new Set(ps.map((p) => catalogPath(p.key)))]);
+    return ps;
+  } catch (e) {
+    const known =
+      (await kvGet<string[]>(env, `edeka:kat:${m.marketNo}`)) ??
+      ((await kvGet<ProspektIndex>(env, `edeka:idx:${m.marketNo}`))?.prospekte ?? []).map((p) => catalogPath(p.key));
+    if (!known.length) throw e;
+    return probeProspekte([...new Set(known)]);
+  }
+}
+
 async function processMarket(env: Env, m: EdekaMarket, maxExtract = 1): Promise<string[]> {
   const log: string[] = [];
   if (!env.ANTHROPIC_API_KEY || !env.CACHE) return ['API-Key oder KV fehlt'];
-  const prospekte = await findProspekte(m);
+  const prospekte = await prospekteOf(env, m);
   log.push(`${m.name}: ${prospekte.length} Prospekt(e) gefunden`);
+  // Nichts gefunden (z. B. Quelle gestört): bisherigen Stand behalten statt leeren
+  if (!prospekte.length) return log;
   const idx: ProspektIndex = { prospekte: [] };
   let extracted = 0;
   for (const p of prospekte) {
@@ -508,7 +554,7 @@ export default {
         const m = await marketById(env, Number(url.searchParams.get('market')));
         if (!m) return error('Markt unbekannt', 404);
         const idx = await kvGet<ProspektIndex>(env, `edeka:idx:${m.marketNo}`);
-        const ps = await findProspekte(m).catch((e) => String(e));
+        const ps = await prospekteOf(env, m).catch((e) => String(e));
         const errs = Array.isArray(ps) ? await Promise.all(ps.map((p) => kvGet(env, errKey(p.key)))) : [];
         const watch = (await kvGet<Watched[]>(env, 'edeka:watch'))?.map((x) => `${x.name} (zuletzt ${new Date(x.lastSeen ?? 0).toISOString()})`);
         const first = idx?.prospekte[0] ? ((await kvGet<Offer[]>(env, pdfKey(idx.prospekte[0].key))) ?? []).slice(0, 15) : [];
@@ -570,6 +616,16 @@ export default {
           recipesToday: Number((await env.CACHE?.get(`rl:recipes:${day}`)) ?? 0),
           recipesPerDay: Number(env.DAILY_RECIPE_LIMIT ?? 15),
         });
+      }
+
+      // EDEKA blockt die Cloud: Das Handy holt die Marktliste selbst und meldet sie hier an
+      if (url.pathname === '/api/edeka/markets' && request.method === 'POST') {
+        const body = (await request.json().catch(() => null)) as { plz?: string; markets?: unknown } | null;
+        const plz = body?.plz ?? null;
+        if (!validPlz(plz)) return error('Bitte eine 5-stellige PLZ angeben.', 400);
+        const list = await nearestFirst(env, plz, parseMarkets(body?.markets));
+        await rememberMarkets(env, plz, list);
+        return json({ nearby: list.map((m) => marketChainInfo(m)) });
       }
 
       if (url.pathname === '/api/offers' && request.method === 'GET') {

@@ -31,16 +31,27 @@ export async function searchMarkets(plz: string): Promise<EdekaMarket[]> {
   const res = await fetch(`https://www.edeka.de/api/marketsearch/markets?searchstring=${encodeURIComponent(plz)}`, { headers: H });
   if (!res.ok) throw new Error(`EDEKA-Marktsuche antwortet mit ${res.status}`);
   const d = (await res.json()) as { markets?: any[] };
-  return (d.markets ?? []).map((m) => ({
-    id: m.id,
-    marketNo: String(m.url ?? '').match(/maerkte\/(\d+)/)?.[1] ?? '',
-    name: m.name,
-    street: m.contact?.address?.street ?? '',
-    city: m.contact?.address?.city?.name ?? '',
-    channel: m.distributionChannelName ?? 'EDEKA',
-    lat: m.coordinates?.lat ? Number(m.coordinates.lat) : undefined,
-    lon: m.coordinates?.lon ? Number(m.coordinates.lon) : undefined,
-  }));
+  return parseMarkets(d.markets);
+}
+
+/** Wandelt die Antwort der EDEKA-Marktsuche um (auch für Daten, die das Handy selbst geholt hat) */
+export function parseMarkets(raw: unknown): EdekaMarket[] {
+  if (!Array.isArray(raw)) return [];
+  const str = (v: unknown, max = 120) => (typeof v === 'string' ? v.slice(0, max) : '');
+  const num = (v: unknown) => (v != null && Number.isFinite(Number(v)) ? Number(v) : undefined);
+  return raw
+    .slice(0, 50)
+    .map((m: any) => ({
+      id: Number(m?.id),
+      marketNo: str(m?.url, 300).match(/maerkte\/(\d+)/)?.[1] ?? '',
+      name: str(m?.name),
+      street: str(m?.contact?.address?.street),
+      city: str(m?.contact?.address?.city?.name),
+      channel: str(m?.distributionChannelName) || 'EDEKA',
+      lat: num(m?.coordinates?.lat),
+      lon: num(m?.coordinates?.lon),
+    }))
+    .filter((m) => Number.isSafeInteger(m.id) && m.id > 0 && m.name);
 }
 
 export function marketChainInfo(m: EdekaMarket, count = 0, note?: string): ChainInfo {
@@ -119,29 +130,56 @@ export async function findProspekte(m: EdekaMarket): Promise<Prospekt[]> {
   const out: Prospekt[] = [];
   const seen = new Set<string>();
   for (const f of found) {
-    const base = `https://blaetterkatalog.edeka.de/${f[1] ?? ''}${f[2]}/${f[3]}/blaetterkatalog`;
-    if (seen.has(base)) continue;
-    seen.add(base);
-    const xml = await fetch(`${base}/xml/catalog.xml`, { headers: H }).then((r) => (r.ok ? r.text() : ''));
-    const validFrom = xml.match(/<from>([\d-]+)<\/from>/)?.[1];
-    const validTo = xml.match(/<to>([\d-]+)<\/to>/)?.[1];
-    if (!validFrom || !validTo) continue;
-    out.push({
-      key: `${f[2]}/${f[3]}/${validFrom}`,
-      pdfUrl: `${base}/pdf/complete.pdf`,
-      base,
-      pageCount: Number(xml.match(/pages="(\d+)"/)?.[1] ?? 0),
-      ratio: (() => {
-        const m = xml.match(/name="large"\s+width="(\d+)"\s+height="(\d+)"/);
-        return m ? Number(m[1]) / Number(m[2]) : 1100 / 1633;
-      })(),
-      validFrom: `${validFrom}T00:00:00+02:00`,
-      validTo: `${validTo}T23:59:59+02:00`,
-      preview: !!f[1],
-    });
+    const p = await catalogAt(f[2], f[3], !!f[1]);
+    if (p && !seen.has(p.key)) {
+      seen.add(p.key);
+      out.push(p);
+    }
   }
   return out;
 }
+
+/** Ein Blätterkatalog unter fester Adresse (z. B. MINDEN/8011165), aktuell oder Vorschau */
+async function catalogAt(region: string, id: string, preview: boolean): Promise<Prospekt | null> {
+  const base = `https://blaetterkatalog.edeka.de/${preview ? 'preview/' : ''}${region}/${id}/blaetterkatalog`;
+  const xml = await fetch(`${base}/xml/catalog.xml`, { headers: H }).then((r) => (r.ok ? r.text() : ''));
+  const validFrom = xml.match(/<from>([\d-]+)<\/from>/)?.[1];
+  const validTo = xml.match(/<to>([\d-]+)<\/to>/)?.[1];
+  if (!validFrom || !validTo) return null;
+  return {
+    key: `${region}/${id}/${validFrom}`,
+    pdfUrl: `${base}/pdf/complete.pdf`,
+    base,
+    pageCount: Number(xml.match(/pages="(\d+)"/)?.[1] ?? 0),
+    ratio: (() => {
+      const m = xml.match(/name="large"\s+width="(\d+)"\s+height="(\d+)"/);
+      return m ? Number(m[1]) / Number(m[2]) : 1100 / 1633;
+    })(),
+    validFrom: `${validFrom}T00:00:00+02:00`,
+    validTo: `${validTo}T23:59:59+02:00`,
+    preview,
+  };
+}
+
+/**
+ * Ohne edeka.de: Die Blätterkatalog-Adresse eines Markts bleibt jede Woche gleich
+ * (z. B. MINDEN/8011165). Aktuellen und Vorschau-Katalog direkt abfragen.
+ */
+export async function probeProspekte(paths: string[], now = Date.now()): Promise<Prospekt[]> {
+  const out: Prospekt[] = [];
+  for (const path of paths) {
+    const [region, id] = path.split('/');
+    if (!/^[A-Z_]+$/.test(region ?? '') || !/^\d+$/.test(id ?? '')) continue;
+    for (const preview of [false, true]) {
+      const p = await catalogAt(region, id, preview).catch(() => null);
+      if (p && Date.parse(p.validTo) >= now && !out.some((x) => x.key === p.key)) out.push(p);
+    }
+  }
+  return out;
+}
+
+/** "MINDEN/8011165/2026-10-18" → "MINDEN/8011165" */
+export const catalogPath = (key: string) => key.split('/').slice(0, 2).join('/');
 
 const GROUPS: Group[] = ['fleisch', 'wurst', 'fisch', 'milch', 'gemuese', 'obst', 'vorrat', 'tiefkuehl', 'feinkost', 'brot', 'fruehstueck', 'snacks', 'getraenke'];
 

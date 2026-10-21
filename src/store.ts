@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { DietChoice, Offer, OffersResponse, Recipe, RecipesResponse, StoreInfo, StoresResponse } from '../shared/types';
+import type { ChainInfo, DietChoice, Offer, OffersResponse, Recipe, RecipesResponse, StoreInfo, StoresResponse } from '../shared/types';
 
 export interface Settings {
   plz: string;
@@ -114,6 +114,22 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const data = await res.json();
   if (!res.ok) throw new Error(data.error ?? `Fehler ${res.status}`);
   return data as T;
+}
+
+/**
+ * EDEKA-Märkte direkt vom Gerät aus suchen (edeka.de blockt Anfragen aus der Cloud)
+ * und beim Server anmelden, damit er Angebote und Prospekt des Markts findet.
+ */
+export async function edekaNearbyFromDevice(plz: string): Promise<ChainInfo[]> {
+  const res = await fetch(`https://www.edeka.de/api/marketsearch/markets?searchstring=${plz}`);
+  if (!res.ok) throw new Error(`EDEKA-Marktsuche antwortet mit ${res.status}`);
+  const d = (await res.json()) as { markets?: unknown[] };
+  const r = await api<{ nearby: ChainInfo[] }>('/api/edeka/markets', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ plz, markets: d.markets ?? [] }),
+  });
+  return r.nearby;
 }
 
 export async function fetchOffers(plz: string, markets: number[] = [], force = false): Promise<OffersResponse> {
