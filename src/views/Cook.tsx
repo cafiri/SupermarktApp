@@ -112,7 +112,7 @@ export function CookView(p: Props) {
             <ul className="cart-items">
               {p.cart.map((o) => (
                 <li key={o.id} className="cart-item">
-                  <OfferThumb src={o.image} crop={o.crop} size={36} alt={o.name} />
+                  <OfferThumb src={o.image} crop={o.crop} validFrom={o.validFrom} size={36} alt={o.name} />
                   <span className="cart-text">
                     <span className="cart-name">{o.name}</span>
                     <span className="muted small">

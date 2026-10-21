@@ -12,6 +12,7 @@ import {
   parseMarkets,
   probeProspekte,
   prospektPage,
+  withCurrentImages,
   proxyImage,
   searchMarkets,
   type EdekaMarket,
@@ -87,7 +88,12 @@ async function edekaOffers(env: Env, m: EdekaMarket): Promise<{ offers: Offer[];
   const idx = await kvGet<ProspektIndex>(env, `edeka:idx:${m.marketNo}`);
   const valid = (idx?.prospekte ?? []).filter((p) => Date.parse(p.validTo) >= now);
   if (valid.length) {
-    const lists = await Promise.all(valid.map(async (p) => (await kvGet<Offer[]>(env, pdfKey(p.key))) ?? kvGet<Offer[]>(env, `edeka:pdf:${p.key}`)));
+    const lists = await Promise.all(
+      valid.map(async (p) => {
+        const l = (await kvGet<Offer[]>(env, pdfKey(p.key))) ?? (await kvGet<Offer[]>(env, `edeka:pdf:${p.key}`));
+        return l ? withCurrentImages(l, p) : null;
+      }),
+    );
     const offers = lists.flatMap((l) => l ?? []);
     if (offers.length) return { offers };
   }
@@ -304,7 +310,7 @@ async function getLeaflets(env: Env, plz: string, marketIds: number[]): Promise<
     const m = await marketById(env, id);
     if (!m) continue;
     try {
-      const ps = await cached(env, `edeka:prosp:${m.marketNo}`, 6 * HOUR, () => prospekteOf(env, m));
+      const ps = await cached(env, `edeka:prosp2:${m.marketNo}`, HOUR, () => prospekteOf(env, m));
       for (const p of ps) {
         if (!p.pageCount || Date.parse(p.validTo) < Date.now()) continue;
         leaflets.push({

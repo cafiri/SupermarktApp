@@ -336,8 +336,24 @@ function arrayBufferToBase64(buf: ArrayBuffer): string {
 }
 
 /** Seitenbild des Blätterkatalogs – läuft über /api/img, weil EDEKA fremde Seiten blockiert */
-export const prospektPage = (p: Pick<Prospekt, 'base'>, page: number, size: 'normal' | 'large') =>
-  `/api/img?u=${encodeURIComponent(`${p.base}/${size}/bk_${page}.jpg`)}`;
+// EDEKA nutzt jede Woche dieselben Adressen (aktuell / preview) für neue Seiten.
+// Darum hängt die Prospektwoche (v=…) an jeder Bildadresse – sonst zeigt ein Zwischenspeicher alte Seiten.
+export const prospektPage = (p: Pick<Prospekt, 'base' | 'validFrom'>, page: number, size: 'normal' | 'large') =>
+  `/api/img?u=${encodeURIComponent(`${p.base}/${size}/bk_${page}.jpg`)}&v=${p.validFrom.slice(0, 10)}`;
+
+/** Wo der Katalog gerade liegt: "MINDEN/8011165/2026-10-18" + Vorschau ja/nein → Basis-URL */
+export const baseFor = (key: string, preview: boolean) =>
+  `https://blaetterkatalog.edeka.de/${preview ? 'preview/' : ''}${catalogPath(key)}/blaetterkatalog`;
+
+/** Bildausschnitte auf die aktuelle Adresse des Prospekts umschreiben (gespeicherte Adressen veralten wöchentlich) */
+export function withCurrentImages(offers: Offer[], p: Pick<Prospekt, 'key' | 'preview' | 'validFrom'>): Offer[] {
+  const at = { base: baseFor(p.key, p.preview), validFrom: p.validFrom };
+  return offers.map((o) => {
+    if (!o.crop) return o;
+    const page = Number(decodeURIComponent(o.crop.src).match(/bk_(\d+)\.jpg/)?.[1] ?? o.page);
+    return page ? { ...o, crop: { ...o.crop, src: prospektPage(at, page, 'large') } } : o;
+  });
+}
 
 /** Lädt ein Bild von EDEKA mit passendem Referer */
 export async function proxyImage(u: string): Promise<Response> {
@@ -345,7 +361,8 @@ export async function proxyImage(u: string): Promise<Response> {
   if (!['blaetterkatalog.edeka.de', 'offer-images.api.edeka'].includes(url.hostname)) {
     return new Response('nicht erlaubt', { status: 400 });
   }
-  const res = await fetch(url.toString(), { headers: { ...H, referer: 'https://blaetterkatalog.edeka.de/' }, cf: { cacheTtl: 604800, cacheEverything: true } } as RequestInit);
+  // Kein Zwischenspeicher auf Cloudflare-Seite: unter derselben EDEKA-Adresse liegt jede Woche eine andere Seite
+  const res = await fetch(url.toString(), { headers: { ...H, referer: 'https://blaetterkatalog.edeka.de/' }, cache: 'no-store' });
   if (!res.ok) return new Response('nicht gefunden', { status: res.status });
   return new Response(res.body, {
     headers: { 'content-type': res.headers.get('content-type') ?? 'image/jpeg', 'cache-control': 'public, max-age=604800, immutable' },

@@ -155,7 +155,7 @@ function Item({ i, done, onToggle }: { i: ReturnType<typeof mergeRecipes>['other
     <li className={`shop-item ${done ? 'done' : ''}`}>
       <label>
         <input type="checkbox" checked={done} onChange={onToggle} />
-        {!i.estimated && <OfferThumb src={i.image} crop={i.crop} size={44} alt={i.name} />}
+        {!i.estimated && <OfferThumb src={i.image} crop={i.crop} validFrom={i.validFrom} size={44} alt={i.name} />}
         <span className="shop-text">
           <span className="shop-name">{i.name}</span>
           <span className="shop-sub">

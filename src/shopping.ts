@@ -9,6 +9,7 @@ export interface ListItem {
   packs?: number;
   image?: string;
   crop?: Crop;
+  validFrom?: string;
   /** Ersparnis gegenüber dem Normalpreis (nur wenn bekannt) */
   saving?: number;
   recipes: string[];
@@ -35,7 +36,7 @@ export function mergeRecipes(recipes: Recipe[], singles: Offer[] = [], have: Rec
           pantry: false,
           cost: o.price,
           usedCost: o.price,
-          offer: { id: o.id, chain: o.chain, name: o.name, brand: o.brand, pack: o.pack, price: o.price, packs: 1, image: o.image, page: o.page, crop: o.crop, oldPrice: o.oldPrice },
+          offer: { id: o.id, chain: o.chain, name: o.name, brand: o.brand, pack: o.pack, price: o.price, packs: 1, image: o.image, page: o.page, crop: o.crop, oldPrice: o.oldPrice, validFrom: o.validFrom },
         })),
       } as unknown as Recipe)
     : null;
@@ -64,6 +65,7 @@ export function mergeRecipes(recipes: Recipe[], singles: Offer[] = [], have: Rec
           packs,
           image: o.image,
           crop: o.crop,
+          validFrom: o.validFrom,
           saving: o.oldPrice && o.oldPrice > o.price ? Math.round(packs * (o.oldPrice - o.price) * 100) / 100 : undefined,
           recipes: [...new Set([...(prev?.recipes ?? []), r.title])],
         });

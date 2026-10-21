@@ -34,9 +34,34 @@ function CropImage({ crop, size, large = false }: { crop: Crop; size: number; la
   );
 }
 
+/**
+ * Ältere, auf dem Handy gespeicherte Ausschnitte zeigen auf eine Prospekt-Adresse ohne Wochenkennung.
+ * EDEKA legt den kommenden Prospekt unter "preview/" ab und verschiebt ihn zum Start auf die normale Adresse.
+ */
+export function fixCrop(crop?: Crop, validFrom?: string): Crop | undefined {
+  if (!crop || !validFrom || crop.src.includes('&v=') || !crop.src.includes('blaetterkatalog')) return crop;
+  let src = crop.src.replace('preview%2F', '');
+  if (Date.parse(validFrom) > Date.now()) src = src.replace('blaetterkatalog.edeka.de%2F', 'blaetterkatalog.edeka.de%2Fpreview%2F');
+  return { ...crop, src: `${src}&v=${validFrom.slice(0, 10)}` };
+}
+
 /** Produktbild (oder Prospekt-Ausschnitt); antippen zeigt es groß */
-export function OfferThumb({ src, crop, size = 56, alt = '' }: { src?: string; crop?: Crop; size?: number; alt?: string }) {
+export function OfferThumb({
+  src,
+  crop: rawCrop,
+  validFrom,
+  size = 56,
+  alt = '',
+}: {
+  src?: string;
+  crop?: Crop;
+  /** Gültig ab – nötig, um alte Prospekt-Ausschnitte auf die richtige Woche zu lenken */
+  validFrom?: string;
+  size?: number;
+  alt?: string;
+}) {
   const [open, setOpen] = useState(false);
+  const crop = fixCrop(rawCrop, validFrom);
   if (!src && !crop) return <span className="thumb-empty" style={{ width: size, height: size }} aria-hidden="true" />;
   const big = Math.min(typeof window !== 'undefined' ? window.innerWidth - 32 : 400, 520);
   return (
@@ -113,7 +138,7 @@ export function OfferRow({
   const onList = list?.isOnList(o.id) ?? false;
   return (
     <li className="offer">
-      <OfferThumb src={o.image} crop={o.crop} alt={o.name} />
+      <OfferThumb src={o.image} crop={o.crop} validFrom={o.validFrom} alt={o.name} />
       <div className="offer-body">
         <div className="offer-name">{o.name}</div>
         <div className="offer-sub">{[o.brand, o.pack, showChain ? shortChain(o.chain) : null, o.page ? `S. ${o.page}` : null].filter(Boolean).join(' · ')}</div>
