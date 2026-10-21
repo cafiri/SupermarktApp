@@ -287,7 +287,7 @@ export async function extractProspekt(m: EdekaMarket, p: Prospekt, apiKey: strin
   return raws
     .filter((o) => o.name && typeof o.price === 'number' && o.price > 0)
     .map((o, i) => ({
-      id: ID_BASE + Number(m.marketNo) * 1000 + i + (p.preview ? 500 : 0),
+      id: prospektOfferId(m.marketNo, p.validFrom, i),
       chain: m.name,
       name: o.name,
       brand: o.brand || undefined,
@@ -345,10 +345,21 @@ export const prospektPage = (p: Pick<Prospekt, 'base' | 'validFrom'>, page: numb
 export const baseFor = (key: string, preview: boolean) =>
   `https://blaetterkatalog.edeka.de/${preview ? 'preview/' : ''}${catalogPath(key)}/blaetterkatalog`;
 
-/** Bildausschnitte auf die aktuelle Adresse des Prospekts umschreiben (gespeicherte Adressen veralten wöchentlich) */
-export function withCurrentImages(offers: Offer[], p: Pick<Prospekt, 'key' | 'preview' | 'validFrom'>): Offer[] {
+/**
+ * Eindeutige Nummer je Markt, Prospektwoche und Position. (Früher hing sie nur an "Vorschau ja/nein" –
+ * dann bekamen zwei Prospekte dieselben Nummern und Rezepte zeigten Zutaten aus dem falschen Prospekt.)
+ */
+export const prospektOfferId = (marketNo: string, validFrom: string, i: number) =>
+  ID_BASE + Number(marketNo) * 100_000 + (Math.round(Date.parse(validFrom) / (7 * 86400_000)) % 100) * 1000 + i;
+
+/**
+ * Gespeicherte Prospekt-Angebote für die Ausgabe auffrischen: eindeutige Nummern vergeben und
+ * Bildausschnitte auf die aktuelle Adresse des Prospekts umschreiben (die Adressen wandern wöchentlich).
+ */
+export function withCurrentImages(offers: Offer[], p: Pick<Prospekt, 'key' | 'preview' | 'validFrom'>, marketNo: string): Offer[] {
   const at = { base: baseFor(p.key, p.preview), validFrom: p.validFrom };
-  return offers.map((o) => {
+  return offers.map((raw, i) => {
+    const o = { ...raw, id: prospektOfferId(marketNo, p.validFrom, i) };
     if (!o.crop) return o;
     const page = Number(decodeURIComponent(o.crop.src).match(/bk_(\d+)\.jpg/)?.[1] ?? o.page);
     return page ? { ...o, crop: { ...o.crop, src: prospektPage(at, page, 'large') } } : o;

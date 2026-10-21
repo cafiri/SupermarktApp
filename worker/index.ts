@@ -91,7 +91,7 @@ async function edekaOffers(env: Env, m: EdekaMarket): Promise<{ offers: Offer[];
     const lists = await Promise.all(
       valid.map(async (p) => {
         const l = (await kvGet<Offer[]>(env, pdfKey(p.key))) ?? (await kvGet<Offer[]>(env, `edeka:pdf:${p.key}`));
-        return l ? withCurrentImages(l, p) : null;
+        return l ? withCurrentImages(l, p, m.marketNo) : null;
       }),
     );
     const offers = lists.flatMap((l) => l ?? []);
