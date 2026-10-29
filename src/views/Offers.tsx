@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { GROUP_LABELS, type Group, type Leaflet, type LeafletsResponse, type Offer } from '../../shared/types';
 import { shortChain } from '../format';
-import { api } from '../store';
+import { api, useSyncReload } from '../store';
 import { OfferRow } from './OfferRow';
 import { DealsView } from './Deals';
 import { matchWatch, readWatch, WatchView } from './Watch';
@@ -28,6 +28,7 @@ interface Props {
 export function OffersView(p: Props) {
   const [mode, setMode] = useState<'liste' | 'tipps' | 'merkliste' | 'bald' | 'prospekte'>('liste');
   const [terms, setTerms] = useState<string[]>(readWatch);
+  useSyncReload(['watch'], () => setTerms(readWatch()));
   const [group, setGroup] = useState<Group | 'alle'>('fleisch');
   const [query, setQuery] = useState('');
 

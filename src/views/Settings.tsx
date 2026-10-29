@@ -1,5 +1,5 @@
 import type { Settings } from '../store';
-import { AppInfo } from './AppInfo';
+import { AppInfo, SyncInfo } from './AppInfo';
 import { CostInfo, Dislikes, ProspektInfo } from './Markets';
 
 /** Einstellungen: Mag ich nicht, eingelesene Prospekte, KI-Kosten, App-Version */
@@ -10,6 +10,7 @@ export function SettingsView(p: { settings: Settings; markets: number[]; onToggl
       <Dislikes list={p.settings.dislikes ?? []} toggle={p.onToggleDislike} />
       <ProspektInfo markets={p.markets} />
       <CostInfo />
+      <SyncInfo />
       <AppInfo />
     </>
   );

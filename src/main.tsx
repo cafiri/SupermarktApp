@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import './styles.css';
 import { registerSW } from 'virtual:pwa-register';
+import { startSync } from './sync';
 
 // Neue Versionen sofort übernehmen: die Seite lädt neu, sobald ein Update bereitliegt.
 // Beim Zurückkehren in die App wird nach Updates gesucht.
@@ -16,6 +17,8 @@ const updateSW = registerSW({
     setInterval(check, 30 * 60_000);
   },
 });
+
+startSync();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -20,7 +20,10 @@
     "EXTRACT_MODEL": "claude-sonnet-5-5",
     "DAILY_RECIPE_LIMIT": "15",
     // Obergrenze für KI-Kosten pro Monat (Rezepte + Prospekte), in US-Dollar
-    "MONTHLY_BUDGET_USD": "8"
+    "MONTHLY_BUDGET_USD": "8",
+    // Cloudflare Access: Team und App – damit der Server weiß, wer angemeldet ist (Abgleich zwischen Geräten)
+    "ACCESS_TEAM": "calm-math-164b.cloudflareaccess.com",
+    "ACCESS_AUD": "32306f48d26b8aa74e4608bba17cfbdb8376a50d442e0b10c230c8c03235e755"
   },
   "observability": { "enabled": true }
 }

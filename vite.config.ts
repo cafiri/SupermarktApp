@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import { readFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
+import { mergeDocs, type SyncDoc } from './worker/sync';
 
 // Versionskennung: Zeitpunkt des Builds + Git-Commit (bei Cloudflare aus WORKERS_CI_COMMIT_SHA)
 function gitSha(): string {
@@ -29,6 +30,8 @@ function versionFile(): Plugin {
   };
 }
 
+let mockSync: SyncDoc = {};
+
 // MOCK_API=1 npm run dev → App läuft lokal mit Beispieldaten, ohne Backend und ohne API-Key
 function mockApi(): Plugin {
   return {
@@ -53,6 +56,14 @@ function mockApi(): Plugin {
           return send(JSON.parse(readFileSync('test/fixture-recipes.json', 'utf8')), 1500);
         }
         if (req.url.startsWith('/version.json')) return send(BUILD, 0);
+        if (req.url.startsWith('/api/sync')) {
+          if (req.method === 'PUT') {
+            let body = '';
+            for await (const c of req) body += c;
+            mockSync = mergeDocs(mockSync, JSON.parse(body).changes ?? {});
+          }
+          return send({ email: 'test@beispiel.de', doc: mockSync }, 100);
+        }
         if (req.url.startsWith('/api/clear')) {
           res.setHeader('clear-site-data', '"cookies", "storage"');
           return send({ ok: true }, 0);

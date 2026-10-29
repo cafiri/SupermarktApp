@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Leaflet, Recipe, RecipeRequest, RecipesResponse } from '../shared/types';
-import { api, loadLastRecipes, LoginError, useCart, useOffers, useSavedRecipes, useSettings, useShoppingList, useStores, useTrip, write } from './store';
+import { api, loadLastRecipes, LoginError, useCart, useOffers, useSavedRecipes, useSettings, useShoppingList, useStores, useSyncReload, useTrip, write } from './store';
 import { shortChain } from './format';
 import { CookView, type GenState } from './views/Cook';
 import { ShoppingView } from './views/Shopping';
@@ -35,6 +35,7 @@ export default function App() {
   const [wishes, setWishes] = useState('');
   const [gen, setGen] = useState<GenState>({ loading: false, error: null, loginExpired: false, startedAt: 0 });
   const [results, setResults] = useState<RecipesResponse | null>(() => loadLastRecipes());
+  useSyncReload(['lastRecipes'], () => setResults(loadLastRecipes()));
   const [detail, setDetail] = useState<Recipe | null>(null);
   const [leaflet, setLeaflet] = useState<{ chain: string; leaflets: Leaflet[] } | null>(null);
 

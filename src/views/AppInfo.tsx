@@ -1,10 +1,42 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { pull, syncStatus, type SyncStatus } from '../sync';
 
 type Build = { sha: string; builtAt: string };
 const current: Build = __BUILD__;
 
 const fmt = (b: Build) =>
   `${new Date(b.builtAt).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })} · ${b.sha}`;
+
+/** Abgleich zwischen Handy und PC über das Cloudflare-Konto */
+export function SyncInfo() {
+  const [s, setS] = useState<SyncStatus>(syncStatus);
+  useEffect(() => {
+    const f = () => setS({ ...syncStatus() });
+    window.addEventListener('sync-status', f);
+    return () => window.removeEventListener('sync-status', f);
+  }, []);
+  const time = s.at ? new Date(s.at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '';
+  return (
+    <section className="card">
+      <h2>Abgleich zwischen Geräten</h2>
+      <p className="muted small">
+        Märkte, Einstellungen, „Mag ich nicht“, Rezepte, gespeicherte Rezepte, Korb, Einkaufsliste und Merkliste sind auf allen Geräten gleich, auf
+        denen du mit deinem Cloudflare-Konto angemeldet bist.
+      </p>
+      {s.state === 'ok' && (
+        <p className="note">
+          ✓ Abgeglichen um {time}
+          {s.email ? ` · ${s.email}` : ''}
+        </p>
+      )}
+      {s.state === 'laeuft' && <p className="muted small">Gleiche ab …</p>}
+      {s.state === 'fehler' && <p className="error">Abgleich hat nicht geklappt: {s.message}</p>}
+      <button className="secondary small-btn" onClick={() => void pull()} disabled={s.state === 'laeuft'}>
+        Jetzt abgleichen
+      </button>
+    </section>
+  );
+}
 
 /** Version der App, Update-Prüfung und "alle Daten dieser Website löschen" */
 export function AppInfo() {
@@ -48,7 +80,7 @@ export function AppInfo() {
     try {
       localStorage.clear();
       sessionStorage.clear();
-      done.push('Märkte, Korb, Einkaufsliste und Rezepte');
+      done.push('Märkte, Korb, Einkaufsliste und Rezepte auf diesem Gerät');
     } catch {
       /* egal */
     }
@@ -100,7 +132,7 @@ export function AppInfo() {
         {cleared ? (
           <div className="cleared" role="status">
             <p>
-              <strong>✓ Gelöscht:</strong> {cleared.join(', ')}. Deine Merkliste ist geblieben.
+              <strong>✓ Gelöscht:</strong> {cleared.join(', ')}. Deine Merkliste ist geblieben. Alles, was in deinem Konto abgeglichen ist, kommt beim Neustart zurück.
             </p>
             <p className="small muted">
               Beim Neustart meldet Cloudflare dich meist automatisch wieder an, weil es sich den Login auf seiner eigenen Seite merkt. Willst du
@@ -122,7 +154,7 @@ export function AppInfo() {
         ) : (
           <>
             <p className="small">
-              Löscht nur für diese App: Märkte, Korb, Einkaufsliste, gespeicherte Rezepte, Zwischenspeicher und Cookies. Die Merkliste bleibt.
+              Löscht nur für diese App und nur auf diesem Gerät: Märkte, Korb, Einkaufsliste, gespeicherte Rezepte, Zwischenspeicher und Cookies. Die Merkliste bleibt, und dein abgeglichener Stand im Konto auch.
               Andere Websites bleiben unberührt.
             </p>
             <div className="app-actions">

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { markChanged } from './sync';
 import type { ChainInfo, DietChoice, Offer, OffersResponse, Recipe, RecipesResponse, StoreInfo, StoresResponse } from '../shared/types';
 
 export interface Settings {
@@ -61,11 +62,28 @@ function readRaw<T>(key: string): T | null {
 
 export function write(key: string, value: unknown) {
   try {
-    if (value == null) localStorage.removeItem(key);
-    else localStorage.setItem(key, JSON.stringify(value));
+    const raw = value == null ? null : JSON.stringify(value);
+    // Nur echte Änderungen speichern und abgleichen
+    if (raw === localStorage.getItem(key)) return;
+    if (raw == null) localStorage.removeItem(key);
+    else localStorage.setItem(key, raw);
+    markChanged(key);
   } catch {
     /* Speicher voll oder gesperrt – egal */
   }
+}
+
+/** Ruft fn auf, wenn der Abgleich einen dieser Bereiche von einem anderen Gerät übernommen hat */
+export function useSyncReload(keys: string[], fn: () => void) {
+  useEffect(() => {
+    const h = (e: Event) => {
+      const changed = (e as CustomEvent<string[]>).detail ?? [];
+      if (keys.some((k) => changed.includes(k))) fn();
+    };
+    window.addEventListener('sync', h);
+    return () => window.removeEventListener('sync', h);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [keys.join(',')]);
 }
 
 export function useSettings() {
@@ -74,6 +92,7 @@ export function useSettings() {
   const [settings, setSettings] = useState<Settings>(() => clean(read('settings', DEFAULT_SETTINGS)));
   useEffect(() => write('settings', settings), [settings]);
   const update = useCallback((patch: Partial<Settings>) => setSettings((s) => clean({ ...s, ...patch })), []);
+  useSyncReload(['settings'], () => setSettings(clean(read('settings', DEFAULT_SETTINGS))));
   return [settings, update] as const;
 }
 
@@ -83,6 +102,7 @@ export function useTrip() {
     return t ? { ...t, chains: [...new Set(t.chains ?? [])], markets: [...new Set(t.markets ?? [])] } : null;
   });
   useEffect(() => write('trip', trip), [trip]);
+  useSyncReload(['trip'], () => setTrip(readRaw<Trip>('trip')));
   return [trip, setTrip] as const;
 }
 
@@ -203,6 +223,7 @@ export function useCart() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => write('cart', cart), [cart]);
+  useSyncReload(['cart'], () => setCart(readRaw<Offer[]>('cart') ?? []));
   const toggle = useCallback(
     (o: Offer) => setCart((c) => (c.some((x) => x.id === o.id) ? c.filter((x) => x.id !== o.id) : [...c, o].slice(-12))),
     [],
@@ -226,6 +247,7 @@ export interface ShoppingState {
 export function useShoppingList() {
   const [state, setState] = useState<ShoppingState>(() => ({ recipes: [], offers: [], checked: [], have: {}, ...(readRaw<ShoppingState>('shopping') ?? {}) }));
   useEffect(() => write('shopping', state), [state]);
+  useSyncReload(['shopping'], () => setState({ recipes: [], offers: [], checked: [], have: {}, ...(readRaw<ShoppingState>('shopping') ?? {}) }));
   const has = (r: Recipe) => state.recipes.some((x) => x.id === r.id);
   const toggleRecipe = useCallback(
     (r: Recipe) =>
@@ -285,6 +307,7 @@ export function useStores(plz: string | null) {
 export function useSavedRecipes() {
   const [saved, setSaved] = useState<Recipe[]>(() => readRaw<Recipe[]>('saved') ?? []);
   useEffect(() => write('saved', saved), [saved]);
+  useSyncReload(['saved'], () => setSaved(readRaw<Recipe[]>('saved') ?? []));
   const toggle = useCallback(
     (r: Recipe) => setSaved((s) => (s.some((x) => x.id === r.id) ? s.filter((x) => x.id !== r.id) : [r, ...s].slice(0, 60))),
     [],

@@ -21,6 +21,7 @@ import {
 import { addCost, costUsd, monthCost, type Tracker } from './costs';
 import { geocode, km, nearestStores } from './stores';
 import { sendPush, vapidKeys, type PushSub } from './push';
+import { accessUser, mergeDocs, syncKey, type SyncDoc } from './sync';
 import { matchWatch } from '../shared/watch';
 import { computeDealsFrom, snapshot, isoWeek, type WeekSnapshot } from './deals';
 import type { ChainInfo, Leaflet, LeafletsResponse, Offer, OffersResponse, RecipeRequest } from '../shared/types';
@@ -34,6 +35,8 @@ export interface Env {
   FAST_MODEL?: string;
   DAILY_RECIPE_LIMIT?: string;
   MONTHLY_BUDGET_USD?: string;
+  ACCESS_TEAM?: string;
+  ACCESS_AUD?: string;
 }
 
 const tracker = (env: Env): Tracker => (model, usage) => addCost(env.CACHE, costUsd(model, usage));
@@ -608,6 +611,26 @@ export default {
           }
         }
         return json(out);
+      }
+
+      // Abgleich zwischen Geräten (je angemeldetem Cloudflare-Konto)
+      if (url.pathname === '/api/sync') {
+        const who = await accessUser(request, env.ACCESS_TEAM, env.ACCESS_AUD);
+        if (!('email' in who)) return error(`Abgleich nicht möglich: ${who.reason}`, 401);
+        if (!env.CACHE) return error('Kein Speicher (KV) verbunden', 500);
+        const key = await syncKey(who.email);
+        const doc = (await kvGet<SyncDoc>(env, key)) ?? {};
+        if (request.method === 'GET') return json({ email: who.email, doc });
+        if (request.method === 'PUT') {
+          const body = (await request.json().catch(() => null)) as { changes?: SyncDoc } | null;
+          if (!body?.changes || typeof body.changes !== 'object') return error('Keine Änderungen', 400);
+          const merged = mergeDocs(doc, body.changes);
+          const size = JSON.stringify(merged).length;
+          if (size > 5_000_000) return error('Zu viele Daten für den Abgleich', 413);
+          await kvPut(env, key, merged);
+          return json({ email: who.email, doc: merged });
+        }
+        return error('Methode nicht erlaubt', 405);
       }
 
       if (url.pathname === '/api/health') {

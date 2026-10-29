@@ -3,6 +3,7 @@ import type { Offer, Recipe, StoreInfo } from '../../shared/types';
 import { euro, shortChain } from '../format';
 import { listAsText, mergeRecipes, shareText } from '../shopping';
 import { OfferThumb } from './OfferRow';
+import { write } from '../store';
 
 interface Props {
   recipes: Recipe[];
@@ -174,7 +175,7 @@ const monthKey = () => `savings:${new Date().toISOString().slice(0, 7)}`;
 function addMonthSaving(n: number) {
   try {
     const v = Number(localStorage.getItem(monthKey()) ?? 0) + n;
-    localStorage.setItem(monthKey(), String(Math.max(0, Math.round(v * 100) / 100)));
+    write(monthKey(), Math.max(0, Math.round(v * 100) / 100));
     window.dispatchEvent(new Event('savings'));
   } catch {
     /* egal */
@@ -192,7 +193,11 @@ function MonthSaving() {
   useEffect(() => {
     const f = () => setV(read());
     window.addEventListener('savings', f);
-    return () => window.removeEventListener('savings', f);
+    window.addEventListener('sync', f);
+    return () => {
+      window.removeEventListener('savings', f);
+      window.removeEventListener('sync', f);
+    };
   }, []);
   if (!v) return null;
   return <p className="muted small">Diesen Monat beim Einkaufen gespart (abgehakt): {euro(v)}</p>;
