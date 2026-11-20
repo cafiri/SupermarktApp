@@ -31,6 +31,8 @@ function versionFile(): Plugin {
 }
 
 let mockSync: SyncDoc = {};
+let mockPolls = 0;
+let mockLoggedOut = false;
 
 // MOCK_API=1 npm run dev → App läuft lokal mit Beispieldaten, ohne Backend und ohne API-Key
 function mockApi(): Plugin {
@@ -38,6 +40,27 @@ function mockApi(): Plugin {
     name: 'mock-api',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
+        // Abgelaufene Anmeldung nachstellen: version.json und /api antworten mit Weiterleitung
+        if (mockLoggedOut && (req.url?.startsWith('/version.json') || req.url?.startsWith('/api/'))) {
+          if (req.url.startsWith('/api/login')) {
+            mockLoggedOut = false;
+            res.statusCode = 302;
+            res.setHeader('location', '/?angemeldet=1');
+            return res.end();
+          }
+          res.statusCode = 302;
+          res.setHeader('location', '/api/login');
+          return res.end();
+        }
+        if (req.url?.startsWith('/version.json')) {
+          res.setHeader('content-type', 'application/json');
+          return res.end(JSON.stringify(BUILD));
+        }
+        if (req.url?.startsWith('/api/login')) {
+          res.statusCode = 302;
+          res.setHeader('location', '/');
+          return res.end();
+        }
         if (!req.url?.startsWith('/api/')) return next();
         const send = (data: unknown, delay = 300) =>
           setTimeout(() => {
@@ -52,8 +75,19 @@ function mockApi(): Plugin {
           ];
           return send({ ...fx, nearby, fetchedAt: new Date().toISOString() });
         }
+        if (req.url.startsWith('/api/recipes/job')) {
+          mockPolls++;
+          if (mockPolls < 3) return send({ state: 'laeuft', startedAt: new Date().toISOString() }, 50);
+          return send({ state: 'fertig', startedAt: new Date().toISOString(), result: JSON.parse(readFileSync('test/fixture-recipes.json', 'utf8')) }, 50);
+        }
         if (req.url.startsWith('/api/recipes')) {
-          return send(JSON.parse(readFileSync('test/fixture-recipes.json', 'utf8')), 1500);
+          // wie live: Auftrag anlegen, Ergebnis später abholen
+          mockPolls = 0;
+          return send({ jobId: '00000000-0000-4000-8000-000000000001' }, 200);
+        }
+        if (req.url.startsWith('/api/mock-logout')) {
+          mockLoggedOut = true;
+          return send({ ok: true }, 0);
         }
         if (req.url.startsWith('/version.json')) return send(BUILD, 0);
         if (req.url.startsWith('/api/sync')) {

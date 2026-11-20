@@ -242,6 +242,13 @@ export function CookView(p: Props) {
         {gen.loading && (
           <p className="loading-note" role="status">
             Claude sucht die passenden Angebote und rechnet die Preise aus. Das dauert {s.fast ? 'etwa 10–20' : 'meist 30–70'} Sekunden. ({elapsed} s)
+            <br />
+            <span className="small">
+              Du kannst die App ruhig schließen – die Rezepte werden trotzdem fertig
+              {typeof Notification !== 'undefined' && Notification.permission === 'granted'
+                ? ', und du bekommst eine Nachricht.'
+                : '. Mit Benachrichtigungen (unter Angebote → Merkliste) sagt dir die App Bescheid.'}
+            </span>
           </p>
         )}
         {p.activeChains.length === 0 && <p className="warn">Wähle oben mindestens einen Markt aus.</p>}

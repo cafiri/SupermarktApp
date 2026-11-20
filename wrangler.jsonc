@@ -14,6 +14,8 @@
   // Fest eingetragen, damit bei jedem Update derselbe Speicher verwendet wird.
   "kv_namespaces": [{ "binding": "CACHE", "id": "9d11a6dcb1e041d4894d465974461c4b" }],
   // Alle 30 Minuten prüfen, ob es neue EDEKA-Prospekte zum Einlesen gibt
+  // Rezepte im Hintergrund bauen (läuft weiter, wenn die App zu ist)
+  "workflows": [{ "name": "supermarkt-rezepte", "binding": "RECIPE_JOB", "class_name": "RecipeJob" }],
   "triggers": { "crons": ["*/30 * * * *"] },
   "vars": {
     "MODEL": "claude-sonnet-5-5",

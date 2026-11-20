@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Leaflet, Recipe, RecipeRequest, RecipesResponse } from '../shared/types';
-import { api, loadLastRecipes, LoginError, useCart, useOffers, useSavedRecipes, useSettings, useShoppingList, useStores, useSyncReload, useTrip, write } from './store';
+import { api, loadLastRecipes, readPending, writePending, type PendingJob, LoginError, useCart, useOffers, useSavedRecipes, useSettings, useShoppingList, useStores, useSyncReload, useTrip, write } from './store';
 import { shortChain } from './format';
 import { CookView, type GenState } from './views/Cook';
 import { ShoppingView } from './views/Shopping';
@@ -63,9 +63,89 @@ export default function App() {
   // Märkte sind eingerichtet; ob heute welche ausgewählt sind, prüft der Knopf
   const ready = !!plz && baseChains.length > 0;
 
+  // Ergebnis übernehmen (beim Austauschen nur das eine Rezept ersetzen)
+  const resultsRef = useRef(results);
+  resultsRef.current = results;
+  const applyResult = useCallback((data: RecipesResponse, replaceId?: string) => {
+    const prev = resultsRef.current;
+    let next = data;
+    if (replaceId && prev && data.recipes[0]) {
+      const recipes = prev.recipes.map((r) => (r.id === replaceId ? data.recipes[0] : r)).sort((a, b) => a.perPortion - b.perPortion);
+      next = { ...prev, recipes };
+    }
+    setResults(next);
+    write('lastRecipes', next);
+  }, []);
+
+  // Laufenden Auftrag verfolgen: Der Server baut weiter, auch wenn die App zwischendurch zu ist
+  const following = useRef<string | null>(null);
+  const follow = useCallback(
+    async (job: PendingJob) => {
+      if (following.current === job.id) return;
+      following.current = job.id;
+      if (job.replaceId) setReplacing(job.replaceId);
+      else setGen((g) => ({ ...g, loading: true, error: null, loginExpired: false, startedAt: job.startedAt }));
+      const done = (error?: string, loginExpired = false) => {
+        writePending(null);
+        following.current = null;
+        setReplacing(null);
+        setGen((g) => ({ ...g, loading: false, error: error ?? null, loginExpired }));
+      };
+      try {
+        for (;;) {
+          if (Date.now() - job.startedAt > 20 * 60_000) return done('Das Erstellen hat zu lange gedauert. Bitte nochmal versuchen.');
+          const j = await api<{ state: 'laeuft' | 'fertig' | 'fehler'; result?: RecipesResponse; error?: string }>(`/api/recipes/job?id=${job.id}`);
+          if (j.state === 'fertig' && j.result) {
+            applyResult(j.result, job.replaceId);
+            return done();
+          }
+          if (j.state === 'fehler') return done(j.error ?? 'Die Rezepte konnten nicht erstellt werden.');
+          // App im Hintergrund: Abfragen pausieren, beim Zurückkommen geht es weiter
+          if (document.visibilityState === 'hidden') {
+            following.current = null;
+            return;
+          }
+          await new Promise((r) => setTimeout(r, 2500));
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        // Auftrag weg (abgelaufen): aufgeben. Sonst (offline, Anmeldung) Auftrag behalten und später weiter abfragen.
+        if (/unbekannt/.test(msg)) return done(msg);
+        following.current = null;
+        setReplacing(null);
+        setGen((g) => ({ ...g, loading: false, error: `${msg} Die Rezepte werden trotzdem fertig gebaut – öffne die App später nochmal.`, loginExpired: e instanceof LoginError }));
+      }
+    },
+    [applyResult],
+  );
+
+  // Beim Start und beim Zurückkehren in die App einen offenen Auftrag wieder aufnehmen
+  useEffect(() => {
+    const resume = () => {
+      const job = readPending();
+      if (job && document.visibilityState === 'visible') void follow(job);
+    };
+    resume();
+    document.addEventListener('visibilitychange', resume);
+    return () => document.removeEventListener('visibilitychange', resume);
+  }, [follow]);
+
+  // Antippen der Benachrichtigung "Rezepte sind fertig" öffnet den Kochen-Tab
+  useEffect(() => {
+    const t = new URLSearchParams(location.search).get('tab');
+    if (t === 'kochen' || t === 'angebote') setTab(t);
+    const onMsg = (e: MessageEvent) => {
+      const url = e.data?.type === 'open' ? String(e.data.url ?? '') : '';
+      const m = url.match(/tab=(kochen|angebote)/);
+      if (m) setTab(m[1] as Tab);
+    };
+    navigator.serviceWorker?.addEventListener('message', onMsg);
+    return () => navigator.serviceWorker?.removeEventListener('message', onMsg);
+  }, []);
+
   // Rezepte werden NUR hier gebaut – ausgelöst durch den Knopf im Kochen-Tab
   const generate = useCallback(async (replaceId?: string) => {
-    if (!ready || activeChains.length === 0 || gen.loading || replacing) return;
+    if (!ready || activeChains.length === 0 || gen.loading || replacing || readPending()) return;
     if (replaceId) setReplacing(replaceId);
     else setGen({ loading: true, error: null, loginExpired: false, startedAt: Date.now() });
     try {
@@ -84,26 +164,26 @@ export default function App() {
         fast: settings.fast,
         replace: replaceId ? { avoidTitles: (results?.recipes ?? []).map((r) => r.title) } : undefined,
       };
-      const data = await api<RecipesResponse>('/api/recipes', {
+      const data = await api<RecipesResponse | { jobId: string }>('/api/recipes', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
       });
-      let next = data;
-      if (replaceId && results && data.recipes[0]) {
-        // Nur das eine Rezept austauschen, Rest bleibt
-        const recipes = results.recipes.map((r) => (r.id === replaceId ? data.recipes[0] : r)).sort((a, b) => a.perPortion - b.perPortion);
-        next = { ...results, recipes };
+      if ('jobId' in data) {
+        // Server baut im Hintergrund – Auftrag merken und verfolgen
+        const job: PendingJob = { id: data.jobId, replaceId, startedAt: Date.now() };
+        writePending(job);
+        void follow(job);
+        return;
       }
-      setResults(next);
-      write('lastRecipes', next);
+      applyResult(data, replaceId);
       setGen((g) => ({ ...g, loading: false }));
+      setReplacing(null);
     } catch (e) {
       setGen((g) => ({ ...g, loading: false, error: e instanceof Error ? e.message : String(e), loginExpired: e instanceof LoginError }));
-    } finally {
       setReplacing(null);
     }
-  }, [ready, gen.loading, replacing, plz, activeChains, markets, settings, cart.cart, wishes, results]);
+  }, [ready, gen.loading, replacing, plz, activeChains, markets, settings, cart.cart, wishes, results, follow, applyResult]);
 
   const toggleDislike = useCallback(
     (name: string) => {

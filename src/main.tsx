@@ -4,6 +4,7 @@ import App from './App';
 import './styles.css';
 import { registerSW } from 'virtual:pwa-register';
 import { startSync } from './sync';
+import { startLoginCheck } from './login';
 
 // Neue Versionen sofort übernehmen: die Seite lädt neu, sobald ein Update bereitliegt.
 // Beim Zurückkehren in die App wird nach Updates gesucht.
@@ -18,6 +19,7 @@ const updateSW = registerSW({
   },
 });
 
+startLoginCheck();
 startSync();
 
 createRoot(document.getElementById('root')!).render(

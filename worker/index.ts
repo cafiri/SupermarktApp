@@ -1,3 +1,4 @@
+import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from 'cloudflare:workers';
 // Cloudflare Worker: liefert die App aus (statische Dateien) und die API unter /api/*
 import { fetchBestLeaflet, fetchRawOffers, leafletPage } from './marktguru';
 import { normalizeAll } from './normalize';
@@ -24,7 +25,7 @@ import { sendPush, vapidKeys, type PushSub } from './push';
 import { accessUser, mergeDocs, syncKey, type SyncDoc } from './sync';
 import { matchWatch } from '../shared/watch';
 import { computeDealsFrom, snapshot, isoWeek, type WeekSnapshot } from './deals';
-import type { ChainInfo, Leaflet, LeafletsResponse, Offer, OffersResponse, RecipeRequest } from '../shared/types';
+import type { ChainInfo, Leaflet, LeafletsResponse, Offer, OffersResponse, RecipeRequest, RecipesResponse } from '../shared/types';
 
 export interface Env {
   ASSETS: Fetcher;
@@ -37,6 +38,8 @@ export interface Env {
   MONTHLY_BUDGET_USD?: string;
   ACCESS_TEAM?: string;
   ACCESS_AUD?: string;
+  /** Hintergrund-Aufträge für Rezepte (Cloudflare Workflows) */
+  RECIPE_JOB?: Workflow<RecipeJobParams>;
 }
 
 const tracker = (env: Env): Tracker => (model, usage) => addCost(env.CACHE, costUsd(model, usage));
@@ -462,6 +465,65 @@ const error = (message: string, status = 500) => json({ error: message }, status
 const validPlz = (p: string | null | undefined): p is string => !!p && /^\d{5}$/.test(p);
 const parseIds = (s: string | null) => [...new Set((s ?? '').split(',').map(Number).filter((n) => Number.isFinite(n) && n > 0))].slice(0, 6);
 
+// ---------- Rezepte im Hintergrund ----------
+
+interface RecipeJobParams {
+  id: string;
+  body: RecipeRequest;
+}
+export interface RecipeJobState {
+  state: 'laeuft' | 'fertig' | 'fehler';
+  startedAt: string;
+  result?: RecipesResponse;
+  error?: string;
+  /** App hat das Ergebnis schon abgeholt */
+  fetched?: boolean;
+}
+const jobKey = (id: string) => `job:${id}`;
+const putJob = (env: Env, id: string, s: RecipeJobState) => kvPut(env, jobKey(id), s, 2 * 86400);
+
+/**
+ * Baut Rezepte unabhängig davon, ob die App offen ist. Keine automatischen Wiederholungen,
+ * damit ein Fehler nie mehrfach KI-Kosten verursacht.
+ */
+export class RecipeJob extends WorkflowEntrypoint<Env, RecipeJobParams> {
+  async run(event: Readonly<WorkflowEvent<RecipeJobParams>>, step: WorkflowStep) {
+    const { id, body } = event.payload;
+    const startedAt = new Date().toISOString();
+    const outcome = await step.do('rezepte erstellen', { retries: { limit: 0, delay: '1 second' }, timeout: '15 minutes' }, async () => {
+      try {
+        const data = await getOffers(this.env, body.plz, (body.markets ?? []).slice(0, 6));
+        const result = await generateRecipes(body, data.offers, this.env, tracker(this.env));
+        await putJob(this.env, id, { state: 'fertig', startedAt, result });
+        return { ok: true, titles: result.recipes.map((r) => r.title), perPortion: Math.min(...result.recipes.map((r) => r.perPortion)) };
+      } catch (e) {
+        await putJob(this.env, id, { state: 'fehler', startedAt, error: e instanceof Error ? e.message : String(e) });
+        return { ok: false, titles: [] as string[], perPortion: 0 };
+      }
+    });
+    // Kurz warten: Ist die App offen, holt sie das Ergebnis selbst ab – dann keine Benachrichtigung
+    await step.sleep('auf die App warten', '8 seconds');
+    await step.do('benachrichtigen', { retries: { limit: 0, delay: '1 second' } }, async () => {
+      const job = await kvGet<RecipeJobState>(this.env, jobKey(id));
+      if (!job || job.fetched || !this.env.CACHE) return 'abgeholt';
+      const price = outcome.perPortion ? ` · ab ${outcome.perPortion.toFixed(2).replace('.', ',')} € pro Portion` : '';
+      const msg = outcome.ok
+        ? {
+            title: body.replace ? 'Neues Rezept ist fertig' : 'Deine Rezepte sind fertig',
+            body: `${outcome.titles.slice(0, 3).join(', ')}${outcome.titles.length > 3 ? ' …' : ''}${price}`,
+            url: '/?tab=kochen',
+            tag: 'rezepte',
+            until: Date.now() + 15 * 60_000,
+          }
+        : { title: 'Rezepte konnten nicht erstellt werden', body: 'Öffne die App für Details.', url: '/?tab=kochen', tag: 'rezepte', until: Date.now() + 15 * 60_000 };
+      await kvPut(this.env, 'push:once', msg, 3600);
+      const subs = await subsOf(this.env);
+      for (const sub of subs) await sendPush(this.env.CACHE, sub.endpoint).catch(() => 0);
+      return `an ${subs.length} Gerät(e)`;
+    });
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -492,6 +554,8 @@ export default {
         return json({ ok: true });
       }
       if (url.pathname === '/api/push/latest') {
+        const once = await kvGet<{ title: string; body: string; url: string; tag: string; until: number }>(env, 'push:once');
+        if (once && once.until > Date.now()) return json(once);
         const subs = await subsOf(env);
         const sub = subs.find((x) => x.endpoint === url.searchParams.get('endpoint')) ?? subs[subs.length - 1];
         return json(sub ? await pushMessage(env, sub) : { title: 'Angebotsküche', body: 'Neue Angebote der Woche sind da.' });
@@ -678,8 +742,25 @@ export default {
         if (!(await checkLimit(env, 'recipes', max))) {
           return error(`Tageslimit von ${max} Rezeptanfragen erreicht. Morgen geht es weiter.`, 429);
         }
+        if (env.RECIPE_JOB && env.CACHE) {
+          // Im Hintergrund bauen: läuft weiter, auch wenn die App geschlossen wird
+          const id = crypto.randomUUID();
+          await putJob(env, id, { state: 'laeuft', startedAt: new Date().toISOString() });
+          await env.RECIPE_JOB.create({ id, params: { id, body } });
+          return json({ jobId: id });
+        }
         const data = await getOffers(env, body.plz, (body.markets ?? []).slice(0, 6));
         return json(await generateRecipes(body, data.offers, env, tracker(env)));
+      }
+
+      // Stand eines Rezept-Auftrags; beim ersten Abholen des Ergebnisses als "abgeholt" markieren
+      if (url.pathname === '/api/recipes/job') {
+        const id = url.searchParams.get('id') ?? '';
+        if (!/^[0-9a-f-]{36}$/.test(id)) return error('Auftrag unbekannt', 404);
+        const job = await kvGet<RecipeJobState>(env, jobKey(id));
+        if (!job) return error('Auftrag unbekannt oder abgelaufen', 404);
+        if (job.state !== 'laeuft' && !job.fetched) await putJob(env, id, { ...job, fetched: true });
+        return json(job);
       }
 
       // Prospekt eines Markts sofort einlesen (sonst macht das der Cron alle 30 Minuten)

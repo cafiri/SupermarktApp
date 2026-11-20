@@ -14,8 +14,8 @@ self.addEventListener('push', (event) => {
         body: msg.body,
         icon: '/icon-192.png',
         badge: '/icon-192.png',
-        tag: 'merkliste',
-        data: { url: '/?tab=angebote' },
+        tag: msg.tag || 'merkliste',
+        data: { url: msg.url || '/?tab=angebote' },
       });
     })(),
   );
@@ -25,9 +25,13 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   event.waitUntil(
     (async () => {
+      const url = (event.notification.data && event.notification.data.url) || '/';
       const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-      if (all.length) return all[0].focus();
-      return self.clients.openWindow('/');
+      if (all.length) {
+        all[0].postMessage({ type: 'open', url });
+        return all[0].focus();
+      }
+      return self.clients.openWindow(url);
     })(),
   );
 });

@@ -106,6 +106,15 @@ export function useTrip() {
   return [trip, setTrip] as const;
 }
 
+/** Rezept-Auftrag, den der Server gerade im Hintergrund baut */
+export interface PendingJob {
+  id: string;
+  replaceId?: string;
+  startedAt: number;
+}
+export const readPending = () => readRaw<PendingJob>('pendingJob');
+export const writePending = (j: PendingJob | null) => write('pendingJob', j);
+
 export function loadLastRecipes(): RecipesResponse | null {
   return readRaw<RecipesResponse>('lastRecipes');
 }
